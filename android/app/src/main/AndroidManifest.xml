@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The app talks to the NF Hotel API (ADR-0015). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="mobil_application"
         android:name="${applicationName}"
