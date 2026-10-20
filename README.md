@@ -16,6 +16,12 @@ ADR-0015).
 - The role decides what the API allows: Housekeeping changes cleaning and
   service, and gets 403 on anything else.
 
+## Flutter version
+
+Flutter 3.47.7 (Dart 3.13.5), stable channel; `pubspec.yaml` needs Dart `^3.13.2`.
+Windows desktop builds need Visual Studio with the "Desktop development with C++"
+workload (`flutter doctor`).
+
 ## Run against the development server
 
 Start the development server of the website repository (`bash scripts/dev-up.sh`).
