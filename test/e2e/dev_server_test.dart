@@ -52,9 +52,8 @@ void main() {
   });
 
   Future<StaffSession> signIn(String userName) async {
-    final result = await HttpAuthRepository(
-      client,
-    ).signIn(userName, Platform.environment[userName]!);
+    final result = await HttpAuthRepository(client)
+        .signIn(userName, Platform.environment[userName]!);
     expect(result, isA<Success<StaffSession>>(), reason: 'sign in $userName');
     final session = (result as Success<StaffSession>).value;
     token = session.token;
@@ -79,9 +78,8 @@ void main() {
       test('a wrong password is refused with one message', () async {
         token = null;
 
-        final result = await HttpAuthRepository(
-          client,
-        ).signIn('housekeeping', 'not-the-password');
+        final result = await HttpAuthRepository(client)
+            .signIn('housekeeping', 'not-the-password');
 
         expect(
           (result as Failed<StaffSession>).failure.kind,

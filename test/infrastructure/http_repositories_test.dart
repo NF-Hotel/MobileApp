@@ -78,9 +78,8 @@ void main() {
           'role': 3,
         });
 
-        final result = await HttpAuthRepository(
-          client,
-        ).signIn('hilda', 'secret');
+        final result = await HttpAuthRepository(client)
+            .signIn('hilda', 'secret');
 
         final session = (result as Success<StaffSession>).value;
         expect(session.token, 'abc');
@@ -171,9 +170,8 @@ void main() {
     test(
       'complete service says whether cleaning follows, other actions do not',
       () async {
-        await HttpRoomRepository(
-          client,
-        ).perform(7, RoomAction.completeService, requiresCleaning: true);
+        await HttpRoomRepository(client)
+            .perform(7, RoomAction.completeService, requiresCleaning: true);
         await HttpRoomRepository(client).perform(7, RoomAction.startCleaning);
 
         expect(sent.first.url.queryParameters, {'requiresCleaning': 'true'});

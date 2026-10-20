@@ -13,8 +13,8 @@ class EmailFormField extends StatelessWidget {
     this.validator,
     this.focusNode,
     this.nextFocusNode,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

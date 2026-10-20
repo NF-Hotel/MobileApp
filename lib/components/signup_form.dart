@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 
 import 'package:mobil_application/Model/user_signup_view_model.dart';
 import 'package:mobil_application/components/emaill_form_field.dart';
+import 'package:mobil_application/components/password_form_field.dart';
 
 class SignupForm extends StatefulWidget {
   final GlobalKey<FormState> _formKey;
   final ValueChanged<UserSignupViewModel> _onChanged;
   final UserSignupViewModel _viewModel;
 
-  SignupForm({
-    Key? key,
+  const SignupForm({
+    super.key,
     required this._formKey,
     required this._onChanged,
     required this._viewModel,
-  }) : super(key: key);
+  });
+
   @override
   State<SignupForm> createState() => SignupFormState();
 }
@@ -46,6 +48,7 @@ class SignupFormState extends State<SignupForm> {
             validator: widget._viewModel.emailValidator,
           ),
           PasswordFormField(
+            labelText: 'Password',
             focusNode: passwordFocus,
             nextFocusNode: confirmPasswordFocus,
             onChanged: (s) =>
@@ -53,13 +56,17 @@ class SignupFormState extends State<SignupForm> {
             currentValue: widget._viewModel.password,
             validator: widget._viewModel.passwordValidator,
           ),
-          ConfirmPasswordFormField(
+          PasswordFormField(
+            labelText: 'Confirm password',
             focusNode: confirmPasswordFocus,
             onChanged: (s) => widget._onChanged(
               widget._viewModel.copyWith(confirmPassword: s),
             ),
             currentValue: widget._viewModel.confirmPassword,
-            validator: widget._viewModel.confirmPasswordValidator,
+            validator: (s) => widget._viewModel.confirmPasswordValidator(
+              s,
+              widget._viewModel.password,
+            ),
           ),
         ],
       ),

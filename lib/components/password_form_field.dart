@@ -9,14 +9,14 @@ class PasswordFormField extends StatefulWidget {
   final FocusNode? nextFocusNode;
 
   const PasswordFormField({
-    Key? key,
+    super.key,
     required this.onChanged,
     required this.validator,
     required this.labelText,
     this.currentValue,
     this.focusNode,
     this.nextFocusNode,
-  }) : super(key: key);
+  });
 
   @override
   State<PasswordFormField> createState() => PasswordFormFieldState();

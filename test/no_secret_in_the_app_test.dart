@@ -5,11 +5,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-List<File> _sources(String folder) => Directory(folder)
-    .listSync(recursive: true)
-    .whereType<File>()
-    .where((file) => file.path.endsWith('.dart'))
-    .toList();
+List<File> _sources(String folder) =>
+    Directory(folder)
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .toList();
 
 void main() {
   final lib = _sources('lib');

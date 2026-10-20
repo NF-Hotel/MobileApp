@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:mobil_application/Model/user_signup_view_model.dart';
 
 class NewUserScreen extends StatefulWidget {
+  const NewUserScreen({super.key});
+
   @override
-  _NewUserScreenState createState() => _NewUserScreenState();
+  State<NewUserScreen> createState() => _NewUserScreenState();
 }
 
 class _NewUserScreenState extends State<NewUserScreen> {
