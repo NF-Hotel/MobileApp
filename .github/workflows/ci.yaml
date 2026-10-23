@@ -1,0 +1,43 @@
+# CI of the NF Hotel mobile app (MIL-029 of NF-Hotel/NFHotel): flutter analyze and the unit
+# and widget tests on every pull request and on main. The end-to-end check against the
+# development server (test/e2e) skips itself here, because it needs the development
+# accounts; it runs in a container next to that server (README).
+# Triggers: pull requests to main, pushes to main. Secrets: none. Changes outside the
+# repository: none. Verified with actionlint 1.7.7.
+name: Mobile app CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Analyze and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Flutter 3.44.0 (Dart 3.12), pinned by digest; pubspec.yaml requires ^3.12.0.
+    container:
+      image: ghcr.io/cirruslabs/flutter:3.44.0@sha256:46691e311715845de03a3ba4753a475476936805b29431b1f00f1816981033f8
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Get the packages from the lock file
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
