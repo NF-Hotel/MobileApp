@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/repositories/auth_repository.dart';
@@ -8,32 +10,51 @@ import 'package:mobil_application/domain/result.dart';
 /// A fixed point in time for the tests.
 final DateTime testNow = DateTime.utc(2026, 10, 20, 8);
 
-/// A session that is valid at [testNow].
-StaffSession validSession({StaffRole role = StaffRole.housekeeping}) =>
-    StaffSession(
-      token: 'token-1',
-      expiresAt: testNow.add(const Duration(hours: 8)),
-      userName: 'hilda',
-      role: role,
-    );
+/// An unsigned JWT with [claims], shaped like the tokens of the API.
+String jwt(Map<String, Object?> claims) {
+  String part(Object json) =>
+      base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
+  return '${part({'alg': 'HS256', 'typ': 'JWT'})}.${part(claims)}.signature';
+}
 
-/// A room with the given state; the actions default to none.
+/// A session that is valid at [testNow].
+StaffSession validSession({
+  StaffRole role = StaffRole.cleaner,
+  String email = 'hilda@hotel.test',
+  String firstName = 'Hilda',
+  String lastName = 'Berg',
+}) => StaffSession(
+  token: 'token-1',
+  expiresAt: testNow.add(const Duration(hours: 8)),
+  email: email,
+  firstName: firstName,
+  lastName: lastName,
+  role: role,
+);
+
+/// A room with the given state.
 Room room({
+  int number = 1,
+  String name = '101',
+  RoomStatus status = RoomStatus.clean,
+  List<String> cleaners = const <String>[],
+}) => Room(number: number, name: name, status: status, cleaners: cleaners);
+
+/// A note written at [createdAt], by default by the [validSession] member.
+RoomNote note({
   int id = 1,
-  String number = '101',
-  int floor = 1,
-  HousekeepingStatus housekeeping = HousekeepingStatus.clean,
-  RoomStatus status = RoomStatus.available,
-  RoomActions actions = const RoomActions(),
-}) => Room(
-  roomId: id,
-  roomNumber: number,
-  floor: floor,
-  size: RoomSize.double,
-  capacity: 2,
-  status: status,
-  housekeepingStatus: housekeeping,
-  actions: actions,
+  String body = 'Lamp is broken',
+  String createdBy = 'hilda@hotel.test',
+  DateTime? createdAt,
+  String? resolvedBy,
+  DateTime? resolvedAt,
+}) => RoomNote(
+  id: id,
+  body: body,
+  createdBy: createdBy,
+  createdAt: createdAt ?? testNow,
+  resolvedBy: resolvedBy,
+  resolvedAt: resolvedAt,
 );
 
 /// Keeps the session in memory.
@@ -54,25 +75,41 @@ class FakeSessionStore implements SessionStore {
   Future<void> clear() async => saved = null;
 }
 
-/// Answers the sign-in with a fixed result and remembers what it was asked.
+/// Answers with fixed results and remembers what it was asked.
 class FakeAuthRepository implements AuthRepository {
   /// Creates the fake.
-  FakeAuthRepository(this.result);
+  FakeAuthRepository(this.result, [Result<StaffSession>? nameResult])
+    : nameResult = nameResult ?? Success(validSession());
 
   /// What the sign-in returns.
   Result<StaffSession> result;
 
-  /// The user names it was called with.
-  final List<String> userNames = <String>[];
+  /// What setting the name returns.
+  Result<StaffSession> nameResult;
+
+  /// The emails it was signed in with.
+  final List<String> emails = <String>[];
+
+  /// The names it was given, as `first last`.
+  final List<String> names = <String>[];
 
   @override
-  Future<Result<StaffSession>> signIn(String userName, String password) async {
-    userNames.add(userName);
+  Future<Result<StaffSession>> signIn(String email, String password) async {
+    emails.add(email);
     return result;
+  }
+
+  @override
+  Future<Result<StaffSession>> setName(
+    String firstName,
+    String lastName,
+  ) async {
+    names.add('$firstName $lastName');
+    return nameResult;
   }
 }
 
-/// Holds rooms in memory and records the actions done on them.
+/// Holds rooms and notes in memory and records the changes made to them.
 class FakeRoomRepository implements RoomRepository {
   /// Creates the fake with [rooms].
   FakeRoomRepository(this.rooms);
@@ -80,47 +117,70 @@ class FakeRoomRepository implements RoomRepository {
   /// The rooms it returns.
   List<Room> rooms;
 
+  /// The notes by room number.
+  final Map<int, List<RoomNote>> notes = <int, List<RoomNote>>{};
+
   /// Set to make every call fail.
   ApiFailure? failure;
 
-  /// What [perform] returns on success; defaults to the room unchanged.
-  Room Function(int roomId, RoomAction action, bool requiresCleaning)?
-  onPerform;
+  /// The changes, as `method:room:detail`.
+  final List<String> calls = <String>[];
 
-  /// The calls to [perform], as `roomId:action:requiresCleaning`.
-  final List<String> performed = <String>[];
+  var _nextNoteId = 100;
 
-  @override
-  Future<Result<List<Room>>> readAll() async {
+  Result<T> _answer<T>(T Function() value) {
     final failed = failure;
-    return failed == null ? Success(rooms) : Failed(failed);
+    return failed == null ? Success(value()) : Failed(failed);
   }
 
   @override
-  Future<Result<Room>> read(int roomId) async {
-    final failed = failure;
-    if (failed != null) {
-      return Failed(failed);
-    }
-    return Success(rooms.firstWhere((r) => r.roomId == roomId));
+  Future<Result<List<Room>>> readAll() async => _answer(() => rooms);
+
+  @override
+  Future<Result<void>> setStatus(int room, RoomStatus status) async {
+    calls.add('setStatus:$room:${status.name}');
+    return _answer(() {
+      rooms = [
+        for (final r in rooms) r.number == room ? r.withStatus(status) : r,
+      ];
+    });
   }
 
   @override
-  Future<Result<Room>> perform(
-    int roomId,
-    RoomAction action, {
-    bool requiresCleaning = false,
-  }) async {
-    performed.add('$roomId:${action.name}:$requiresCleaning');
-    final failed = failure;
-    if (failed != null) {
-      return Failed(failed);
-    }
-    final change = onPerform;
-    final updated = change == null
-        ? rooms.firstWhere((r) => r.roomId == roomId)
-        : change(roomId, action, requiresCleaning);
-    rooms = [for (final r in rooms) r.roomId == roomId ? updated : r];
-    return Success(updated);
+  Future<Result<List<RoomNote>>> readNotes(int room) async =>
+      _answer(() => notes[room] ?? const <RoomNote>[]);
+
+  @override
+  Future<Result<void>> addNote(int room, String body) async {
+    calls.add('addNote:$room:$body');
+    return _answer(() {
+      notes[room] = [note(id: _nextNoteId++, body: body), ...?notes[room]];
+    });
+  }
+
+  @override
+  Future<Result<void>> setResolved(int room, int noteId, bool resolved) async {
+    calls.add('setResolved:$room:$noteId:$resolved');
+    return _answer(() {
+      notes[room] = [
+        for (final n in notes[room] ?? const <RoomNote>[])
+          n.id != noteId
+              ? n
+              : RoomNote(
+                  id: n.id,
+                  body: n.body,
+                  createdBy: n.createdBy,
+                  createdAt: n.createdAt,
+                  resolvedBy: resolved ? 'hilda@hotel.test' : null,
+                  resolvedAt: resolved ? testNow : null,
+                ),
+      ];
+    });
+  }
+
+  @override
+  Future<Result<void>> deleteNote(int room, int noteId) async {
+    calls.add('deleteNote:$room:$noteId');
+    return _answer(() => notes[room]?.removeWhere((n) => n.id == noteId));
   }
 }

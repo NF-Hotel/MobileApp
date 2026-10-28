@@ -1,5 +1,5 @@
-// The app as a whole: sign-in first, rooms after, and back to the sign-in when
-// the session ends (MIL-029).
+// The app as a whole: sign-in first, the name of a new account next, rooms
+// after, and back to the sign-in when the session ends.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,13 +17,7 @@ void main() {
 
   setUp(() {
     rooms = FakeRoomRepository([
-      room(
-        id: 5,
-        number: '305',
-        floor: 3,
-        housekeeping: HousekeepingStatus.departureCleaningDue,
-        actions: const RoomActions(canStartCleaning: true),
-      ),
+      room(number: 5, name: '305', status: RoomStatus.needsCleaning),
     ]);
     auth = FakeAuthRepository(Success(validSession()));
   });
@@ -39,6 +33,16 @@ void main() {
     await session.restore();
     await tester.pumpAndSettle();
     return session;
+  }
+
+  Future<void> signIn(WidgetTester tester) async {
+    await tester.enterText(
+      find.byKey(const ValueKey('email')),
+      'hilda@hotel.test',
+    );
+    await tester.enterText(find.byKey(const ValueKey('password')), 'secret');
+    await tester.tap(find.byKey(const ValueKey('signIn')));
+    await tester.pumpAndSettle();
   }
 
   testWidgets('with nobody signed in the sign-in is shown', (tester) async {
@@ -58,13 +62,27 @@ void main() {
   testWidgets('signing in shows the rooms from the API', (tester) async {
     await start(tester, FakeSessionStore());
 
-    await tester.enterText(find.byKey(const ValueKey('userName')), 'hilda');
-    await tester.enterText(find.byKey(const ValueKey('password')), 'secret');
-    await tester.tap(find.byKey(const ValueKey('signIn')));
-    await tester.pumpAndSettle();
+    await signIn(tester);
 
     expect(find.byKey(const ValueKey('room-5')), findsOneWidget);
     expect(find.text('305'), findsOneWidget);
+  });
+
+  testWidgets('a new account sets its name before the rooms', (tester) async {
+    auth.result = Success(validSession(firstName: '', lastName: ''));
+    await start(tester, FakeSessionStore());
+
+    await signIn(tester);
+    expect(find.byKey(const ValueKey('saveName')), findsOneWidget);
+    expect(find.byKey(const ValueKey('room-5')), findsNothing);
+
+    await tester.enterText(find.byKey(const ValueKey('firstName')), 'Hilda');
+    await tester.enterText(find.byKey(const ValueKey('lastName')), 'Berg');
+    await tester.tap(find.byKey(const ValueKey('saveName')));
+    await tester.pumpAndSettle();
+
+    expect(auth.names, ['Hilda Berg']);
+    expect(find.byKey(const ValueKey('room-5')), findsOneWidget);
   });
 
   testWidgets('a session that ends on a room screen returns to the sign-in', (
@@ -73,13 +91,13 @@ void main() {
     final session = await start(tester, FakeSessionStore(validSession()));
     await tester.tap(find.byKey(const ValueKey('room-5')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('action-startCleaning')), findsOneWidget);
+    expect(find.byKey(const ValueKey('newNote')), findsOneWidget);
 
     session.onUnauthorized();
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('signIn')), findsOneWidget);
-    expect(find.byKey(const ValueKey('action-startCleaning')), findsNothing);
+    expect(find.byKey(const ValueKey('newNote')), findsNothing);
   });
 
   testWidgets('signing out and in again reads the rooms again', (tester) async {
@@ -88,10 +106,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('signIn')), findsOneWidget);
 
-    await tester.enterText(find.byKey(const ValueKey('userName')), 'hilda');
-    await tester.enterText(find.byKey(const ValueKey('password')), 'secret');
-    await tester.tap(find.byKey(const ValueKey('signIn')));
-    await tester.pumpAndSettle();
+    await signIn(tester);
 
     expect(find.byKey(const ValueKey('room-5')), findsOneWidget);
   });

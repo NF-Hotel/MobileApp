@@ -19,19 +19,19 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _userName = TextEditingController();
+  final _email = TextEditingController();
   final _password = TextEditingController();
 
   @override
   void dispose() {
-    _userName.dispose();
+    _email.dispose();
     _password.dispose();
     super.dispose();
   }
 
   void _submit() {
     if (_formKey.currentState?.validate() ?? false) {
-      unawaited(widget.viewModel.submit(_userName.text, _password.text));
+      unawaited(widget.viewModel.submit(_email.text, _password.text));
     }
   }
 
@@ -57,15 +57,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         TextFormField(
-                          key: const ValueKey('userName'),
-                          controller: _userName,
+                          key: const ValueKey('email'),
+                          controller: _email,
                           enabled: !viewModel.isBusy,
-                          autofillHints: const [AutofillHints.username],
+                          autofillHints: const [AutofillHints.email],
+                          keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(
-                            labelText: Strings.userName,
+                            labelText: Strings.email,
                           ),
-                          validator: viewModel.validateUserName,
+                          validator: viewModel.validateEmail,
                         ),
                         const SizedBox(height: 16),
                         TextFormField(

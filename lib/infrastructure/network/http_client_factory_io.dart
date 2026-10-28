@@ -14,10 +14,8 @@ http.Client createHttpClient({required String developmentHost}) {
     return http.Client();
   }
   final inner = HttpClient()
-    ..badCertificateCallback = (
-      X509Certificate certificate,
-      String host,
-      int port,
-    ) => host == developmentHost;
+    ..badCertificateCallback =
+        (X509Certificate certificate, String host, int port) =>
+            host == developmentHost;
   return IOClient(inner);
 }

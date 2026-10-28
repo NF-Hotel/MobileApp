@@ -3,7 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/presentation/shared/strings.dart';
 
-/// One room in the overview: its number, floor and housekeeping state.
+/// The icon of a cleaning state.
+IconData roomStatusIcon(RoomStatus status) => switch (status) {
+  RoomStatus.clean => Icons.check_circle_outline,
+  RoomStatus.needsCleaning => Icons.cleaning_services,
+  RoomStatus.dailyCleaning => Icons.bed,
+  RoomStatus.needsMaintenance => Icons.build,
+};
+
+/// One room in the overview: its name, cleaning state and cleaners.
 class RoomTile extends StatelessWidget {
   /// Creates the tile.
   const RoomTile({required this.room, required this.onTap, super.key});
@@ -17,9 +25,8 @@ class RoomTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final needsAttention = room.housekeepingStatus != HousekeepingStatus.clean;
     return Card(
-      color: needsAttention ? scheme.tertiaryContainer : null,
+      color: room.status == RoomStatus.clean ? null : scheme.tertiaryContainer,
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -28,19 +35,25 @@ class RoomTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                room.roomNumber,
+                room.name,
                 style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              Text('Floor ${room.floor}'),
               const SizedBox(height: 8),
+              Icon(roomStatusIcon(room.status)),
               Text(
-                Strings.housekeeping(room.housekeepingStatus),
+                Strings.roomStatus(room.status),
                 textAlign: TextAlign.center,
               ),
-              if (room.status != RoomStatus.available)
+              if (room.cleaners.isNotEmpty)
                 Text(
-                  Strings.roomStatus(room.status),
-                  style: TextStyle(color: scheme.error),
+                  room.cleaners.join(', '),
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
             ],
           ),

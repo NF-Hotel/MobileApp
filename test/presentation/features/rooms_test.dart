@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
+import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/result.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_screen.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_view_model.dart';
@@ -17,26 +18,30 @@ void main() {
 
   setUp(() {
     rooms = FakeRoomRepository([
-      room(id: 2, number: '201', floor: 2),
-      room(
-        id: 1,
-        number: '102',
-        floor: 1,
-        housekeeping: HousekeepingStatus.dailyCleaningDue,
-        actions: const RoomActions(canStartCleaning: true),
-      ),
-      room(id: 3, number: '101', floor: 1),
+      room(number: 1, name: '101', cleaners: ['Hilda Berg']),
+      room(number: 2, name: 'Suite', status: RoomStatus.needsCleaning),
     ]);
   });
 
+  RoomViewModel viewModelFor(
+    Room room, {
+    StaffSession? viewer,
+    DateTime? now,
+  }) => RoomViewModel(
+    rooms: rooms,
+    room: room,
+    viewer: viewer ?? validSession(),
+    now: () => now ?? testNow,
+  );
+
   group('RoomOverviewViewModel', () {
-    test('load shows the rooms by floor and then by number', () async {
+    test('load shows the rooms in the order of the API', () async {
       final viewModel = RoomOverviewViewModel(rooms: rooms);
 
       await viewModel.load();
 
       expect(viewModel.state, RoomOverviewState.ready);
-      expect(viewModel.rooms.map((r) => r.roomNumber), ['101', '102', '201']);
+      expect(viewModel.rooms.map((r) => r.name), ['101', 'Suite']);
     });
 
     test('a failure is shown as a message, not thrown', () async {
@@ -63,121 +68,121 @@ void main() {
   });
 
   group('RoomViewModel', () {
-    test('the actions are those that the room allows, in cleaning order', () {
-      final viewModel = RoomViewModel(
-        rooms: rooms,
-        room: room(
-          actions: const RoomActions(
-            canCompleteCleaning: true,
-            canMarkDailyCleaningDue: true,
-            canReportServiceNeeded: true,
-          ),
-        ),
-      );
+    test('setStatus changes the room after the API agrees', () async {
+      final viewModel = viewModelFor(rooms.rooms.first);
 
-      expect(viewModel.actions, [
-        RoomAction.markDailyCleaningDue,
-        RoomAction.completeCleaning,
-        RoomAction.reportServiceNeeded,
-      ]);
+      final done = await viewModel.setStatus(RoomStatus.dailyCleaning);
+
+      expect(done, isTrue);
+      expect(viewModel.room.status, RoomStatus.dailyCleaning);
+      expect(rooms.calls, ['setStatus:1:dailyCleaning']);
     });
 
-    test(
-      'perform sends the action and shows the room as it is afterwards',
-      () async {
-        rooms.onPerform = (id, action, requiresCleaning) => room(
-          id: id,
-          number: '102',
-          housekeeping: HousekeepingStatus.cleaningInProgress,
-          actions: const RoomActions(canCompleteCleaning: true),
-        );
-        final viewModel = RoomViewModel(rooms: rooms, room: rooms.rooms[1]);
-
-        await viewModel.perform(RoomAction.startCleaning);
-
-        expect(rooms.performed, ['1:startCleaning:false']);
-        expect(
-          viewModel.room.housekeepingStatus,
-          HousekeepingStatus.cleaningInProgress,
-        );
-        expect(viewModel.actions, [RoomAction.completeCleaning]);
-      },
-    );
-
-    test('complete service passes whether cleaning follows', () async {
-      final viewModel = RoomViewModel(rooms: rooms, room: rooms.rooms[1]);
-
-      await viewModel.perform(
-        RoomAction.completeService,
-        requiresCleaning: true,
-      );
-
-      expect(rooms.performed, ['1:completeService:true']);
-    });
-
-    test('a refused action keeps the room and shows why', () async {
-      rooms.failure = const ApiFailure(FailureKind.rejected);
-      final viewModel = RoomViewModel(rooms: rooms, room: rooms.rooms[1]);
-
-      await viewModel.perform(RoomAction.startCleaning);
-
-      expect(viewModel.errorMessage, 'That is not possible with the room now.');
-      expect(viewModel.room.roomId, 1);
-      expect(viewModel.isBusy, isFalse);
-    });
-
-    test('a role without the permission is told so', () async {
+    test('a refused status keeps the room as it was', () async {
       rooms.failure = const ApiFailure(FailureKind.forbidden);
-      final viewModel = RoomViewModel(rooms: rooms, room: rooms.rooms[1]);
+      final viewModel = viewModelFor(rooms.rooms.first);
 
-      await viewModel.perform(RoomAction.startCleaning);
+      final done = await viewModel.setStatus(RoomStatus.needsMaintenance);
 
-      expect(viewModel.errorMessage, 'Your role may not do that.');
+      expect(done, isFalse);
+      expect(viewModel.room.status, RoomStatus.clean);
+      expect(viewModel.errorMessage, 'You may not do that.');
+    });
+
+    test('adding a note reads the notes again; empty is not sent', () async {
+      final viewModel = viewModelFor(rooms.rooms.first);
+
+      expect(await viewModel.addNote('   '), isFalse);
+      expect(await viewModel.addNote(' Towels '), isTrue);
+
+      expect(rooms.calls, ['addNote:1:Towels']);
+      expect(viewModel.notes.single.body, 'Towels');
+    });
+
+    test('the author may delete a note for ten minutes only', () {
+      final viewModel = viewModelFor(
+        rooms.rooms.first,
+        now: testNow.add(const Duration(minutes: 9)),
+      );
+      final later = viewModelFor(
+        rooms.rooms.first,
+        now: testNow.add(const Duration(minutes: 10)),
+      );
+
+      expect(viewModel.canDelete(note()), isTrue);
+      expect(viewModel.canDelete(note(createdBy: 'ole@hotel.test')), isFalse);
+      expect(later.canDelete(note()), isFalse);
+    });
+
+    test('an admin may delete and untick any note at any time', () {
+      final viewModel = viewModelFor(
+        rooms.rooms.first,
+        viewer: validSession(role: StaffRole.admin, email: 'boss@hotel.test'),
+        now: testNow.add(const Duration(days: 3)),
+      );
+      final resolved = note(resolvedBy: 'ole@hotel.test', resolvedAt: testNow);
+
+      expect(viewModel.canDelete(note()), isTrue);
+      expect(viewModel.canToggle(resolved), isTrue);
+    });
+
+    test('anyone may tick; only the one who ticked may untick, briefly', () {
+      final viewModel = viewModelFor(
+        rooms.rooms.first,
+        now: testNow.add(const Duration(minutes: 5)),
+      );
+
+      expect(viewModel.canToggle(note(createdBy: 'ole@hotel.test')), isTrue);
+      expect(
+        viewModel.canToggle(
+          note(resolvedBy: 'hilda@hotel.test', resolvedAt: testNow),
+        ),
+        isTrue,
+      );
+      expect(
+        viewModel.canToggle(
+          note(resolvedBy: 'ole@hotel.test', resolvedAt: testNow),
+        ),
+        isFalse,
+      );
     });
   });
 
   group('RoomOverviewScreen', () {
-    late SessionController session;
-
-    setUp(() async {
-      session = SessionController(
+    Future<SessionController> show(WidgetTester tester) async {
+      final session = SessionController(
         store: FakeSessionStore(validSession()),
         now: () => testNow,
       );
       await session.restore();
-    });
-
-    Future<void> show(WidgetTester tester) => tester.pumpWidget(
-      MaterialApp(
-        home: RoomOverviewScreen(
-          viewModel: RoomOverviewViewModel(rooms: rooms),
-          rooms: rooms,
-          session: session,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RoomOverviewScreen(
+            viewModel: RoomOverviewViewModel(rooms: rooms),
+            rooms: rooms,
+            session: session,
+          ),
         ),
-      ),
-    );
-
-    testWidgets('shows a tile for every room and who is signed in', (
-      tester,
-    ) async {
-      await show(tester);
+      );
       await tester.pumpAndSettle();
+      return session;
+    }
+
+    testWidgets('shows each room with its state and cleaners', (tester) async {
+      await show(tester);
 
       expect(find.byKey(const ValueKey('room-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('room-2')), findsOneWidget);
-      expect(find.byKey(const ValueKey('room-3')), findsOneWidget);
-      expect(find.text('hilda (Housekeeping)'), findsOneWidget);
-      expect(find.text('Daily cleaning due'), findsOneWidget);
+      expect(find.text('Needs cleaning'), findsOneWidget);
+      expect(find.text('Hilda Berg'), findsOneWidget);
+      expect(find.text('Hilda Berg (Cleaner)'), findsOneWidget);
     });
 
-    testWidgets('a failure shows the message and a way to try again', (
-      tester,
-    ) async {
+    testWidgets('a failure shows the message and a retry', (tester) async {
       rooms.failure = const ApiFailure(FailureKind.network);
       await show(tester);
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('roomsError')), findsOneWidget);
 
+      expect(find.byKey(const ValueKey('roomsError')), findsOneWidget);
       rooms.failure = null;
       await tester.tap(find.text(Strings.retry));
       await tester.pumpAndSettle();
@@ -185,127 +190,89 @@ void main() {
       expect(find.byKey(const ValueKey('room-1')), findsOneWidget);
     });
 
-    testWidgets('sign out ends the session', (tester) async {
+    testWidgets('no rooms says so', (tester) async {
+      rooms.rooms = [];
       await show(tester);
-      await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey('signOut')));
-      await tester.pump();
-
-      expect(session.session, isNull);
+      expect(find.text(Strings.noRooms), findsOneWidget);
     });
 
-    testWidgets(
-      'a room opens, its action runs, and the overview is read again',
-      (tester) async {
-        rooms.onPerform = (id, action, requiresCleaning) => room(
-          id: id,
-          number: '102',
-          housekeeping: HousekeepingStatus.cleaningInProgress,
-        );
-        await show(tester);
-        await tester.pumpAndSettle();
+    testWidgets('a status set in a room shows in the overview after', (
+      tester,
+    ) async {
+      await show(tester);
+      await tester.tap(find.byKey(const ValueKey('room-1')));
+      await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const ValueKey('room-1')));
-        await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const ValueKey('action-startCleaning')));
-        await tester.pumpAndSettle();
-        expect(find.text('Being cleaned'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('status-needsMaintenance')));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
 
-        await tester.pageBack();
-        await tester.pumpAndSettle();
-
-        expect(find.text('Being cleaned'), findsOneWidget);
-        expect(rooms.performed, ['1:startCleaning:false']);
-      },
-    );
+      expect(rooms.calls, ['setStatus:1:needsMaintenance']);
+      expect(find.text('Needs maintenance'), findsOneWidget);
+    });
   });
 
   group('RoomViewScreen', () {
-    Future<RoomViewModel> show(WidgetTester tester, Room room) async {
-      rooms.rooms = [room];
-      final viewModel = RoomViewModel(rooms: rooms, room: room);
+    Future<void> show(WidgetTester tester, RoomViewModel viewModel) async {
       await tester.pumpWidget(
         MaterialApp(home: RoomViewScreen(viewModel: viewModel)),
       );
       await tester.pumpAndSettle();
-      return viewModel;
     }
 
-    testWidgets('offers a button only for each action the room allows', (
-      tester,
-    ) async {
-      await show(
-        tester,
-        room(
-          actions: const RoomActions(
-            canStartCleaning: true,
-            canReportServiceNeeded: true,
-          ),
-        ),
-      );
+    testWidgets('shows the cleaners and the notes', (tester) async {
+      rooms.notes[1] = [note(id: 7, body: 'Lamp is broken')];
+      await show(tester, viewModelFor(rooms.rooms.first));
 
-      expect(
-        find.byKey(const ValueKey('action-startCleaning')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('action-reportServiceNeeded')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('action-completeCleaning')),
-        findsNothing,
-      );
+      expect(find.text('Hilda Berg'), findsOneWidget);
+      expect(find.text('Lamp is broken'), findsOneWidget);
+      expect(find.byKey(const ValueKey('delete-7')), findsOneWidget);
     });
 
-    testWidgets('says so when nothing can be done', (tester) async {
-      await show(tester, room());
+    testWidgets('a note is added and the field cleared', (tester) async {
+      await show(tester, viewModelFor(rooms.rooms.first));
+      expect(find.text(Strings.noNotes), findsOneWidget);
 
-      expect(find.text(Strings.nothingToDo), findsOneWidget);
+      await tester.enterText(find.byKey(const ValueKey('newNote')), 'Towels');
+      await tester.tap(find.byKey(const ValueKey('addNote')));
+      await tester.pumpAndSettle();
+
+      expect(rooms.calls, ['addNote:1:Towels']);
+      expect(find.text('Towels'), findsOneWidget);
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('newNote')),
+      );
+      expect(field.controller!.text, isEmpty);
     });
 
-    testWidgets('completing a service asks whether cleaning follows', (
-      tester,
-    ) async {
-      await show(
-        tester,
-        room(actions: const RoomActions(canCompleteService: true)),
-      );
+    testWidgets('ticking and deleting a note call the API', (tester) async {
+      rooms.notes[1] = [note(id: 7)];
+      await show(tester, viewModelFor(rooms.rooms.first));
 
-      await tester.tap(find.byKey(const ValueKey('action-completeService')));
+      await tester.tap(find.byKey(const ValueKey('resolve-7')));
       await tester.pumpAndSettle();
-      expect(find.text(Strings.cleaningFollows), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('cleaningFollowsYes')));
+      await tester.tap(find.byKey(const ValueKey('delete-7')));
       await tester.pumpAndSettle();
 
-      expect(rooms.performed, ['1:completeService:true']);
+      expect(rooms.calls, ['setResolved:1:7:true', 'deleteNote:1:7']);
+      expect(find.text(Strings.noNotes), findsOneWidget);
     });
 
-    testWidgets('cancelling the question does nothing', (tester) async {
-      await show(
-        tester,
-        room(actions: const RoomActions(canCompleteService: true)),
-      );
+    testWidgets('a note of someone else has no delete button', (tester) async {
+      rooms.notes[1] = [note(id: 7, createdBy: 'ole@hotel.test')];
+      await show(tester, viewModelFor(rooms.rooms.first));
 
-      await tester.tap(find.byKey(const ValueKey('action-completeService')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(Strings.cancel));
-      await tester.pumpAndSettle();
-
-      expect(rooms.performed, isEmpty);
+      expect(find.byKey(const ValueKey('delete-7')), findsNothing);
     });
 
-    testWidgets('a refused action shows the message on the screen', (
-      tester,
-    ) async {
-      await show(
-        tester,
-        room(actions: const RoomActions(canStartCleaning: true)),
-      );
-      rooms.failure = const ApiFailure(FailureKind.rejected);
+    testWidgets('a refusal is shown on the screen', (tester) async {
+      final viewModel = viewModelFor(rooms.rooms.first);
+      await show(tester, viewModel);
+      rooms.failure = const ApiFailure(FailureKind.forbidden);
 
-      await tester.tap(find.byKey(const ValueKey('action-startCleaning')));
+      await tester.tap(find.byKey(const ValueKey('status-dailyCleaning')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('roomError')), findsOneWidget);

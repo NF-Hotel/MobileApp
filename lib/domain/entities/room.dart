@@ -1,153 +1,75 @@
-/// The size of a room.
-enum RoomSize {
-  /// One bed.
-  single,
-
-  /// Two beds.
-  double,
-
-  /// A suite.
-  suite,
-}
-
-/// Whether a room can be let.
+/// The cleaning state of a room. The API keeps it by the name of the value.
 enum RoomStatus {
-  /// In use as normal.
-  available,
-
-  /// Taken out of service.
-  outOfService,
-
-  /// Under maintenance.
-  maintenance,
-}
-
-/// Where a room is in cleaning and service.
-enum HousekeepingStatus {
   /// Clean and ready.
   clean,
 
+  /// Waiting for a full cleaning.
+  needsCleaning,
+
   /// Waiting for the daily cleaning.
-  dailyCleaningDue,
+  dailyCleaning,
 
-  /// Waiting for the cleaning after a guest left.
-  departureCleaningDue,
-
-  /// Being cleaned.
-  cleaningInProgress,
-
-  /// Waiting for service.
-  serviceRequired,
-
-  /// Being serviced.
-  serviceInProgress,
-}
-
-/// What the API says may be done with a room now, from its state.
-class RoomActions {
-  /// Creates the flags.
-  const RoomActions({
-    this.canMarkDailyCleaningDue = false,
-    this.canMarkDepartureCleaningDue = false,
-    this.canStartCleaning = false,
-    this.canCompleteCleaning = false,
-    this.canReportServiceNeeded = false,
-    this.canStartService = false,
-    this.canCompleteService = false,
-  });
-
-  /// Mark for daily cleaning.
-  final bool canMarkDailyCleaningDue;
-
-  /// Mark for departure cleaning.
-  final bool canMarkDepartureCleaningDue;
-
-  /// Start cleaning.
-  final bool canStartCleaning;
-
-  /// Complete cleaning.
-  final bool canCompleteCleaning;
-
-  /// Report that service is needed.
-  final bool canReportServiceNeeded;
-
-  /// Start service.
-  final bool canStartService;
-
-  /// Complete service.
-  final bool canCompleteService;
-
-  /// Tells whether [action] is allowed.
-  bool allows(RoomAction action) => switch (action) {
-    RoomAction.markDailyCleaningDue => canMarkDailyCleaningDue,
-    RoomAction.markDepartureCleaningDue => canMarkDepartureCleaningDue,
-    RoomAction.startCleaning => canStartCleaning,
-    RoomAction.completeCleaning => canCompleteCleaning,
-    RoomAction.reportServiceNeeded => canReportServiceNeeded,
-    RoomAction.startService => canStartService,
-    RoomAction.completeService => canCompleteService,
-  };
-}
-
-/// The cleaning and service actions of a room that the app offers.
-enum RoomAction {
-  /// Mark for daily cleaning.
-  markDailyCleaningDue,
-
-  /// Mark for departure cleaning.
-  markDepartureCleaningDue,
-
-  /// Start cleaning.
-  startCleaning,
-
-  /// Complete cleaning.
-  completeCleaning,
-
-  /// Report that service is needed.
-  reportServiceNeeded,
-
-  /// Start service.
-  startService,
-
-  /// Complete service.
-  completeService,
+  /// Something in the room needs fixing.
+  needsMaintenance,
 }
 
 /// A room of the hotel, as the API reports it.
 class Room {
   /// Creates a room.
   const Room({
-    required this.roomId,
-    required this.roomNumber,
-    required this.floor,
-    required this.size,
-    required this.capacity,
+    required this.number,
+    required this.name,
     required this.status,
-    required this.housekeepingStatus,
-    required this.actions,
+    this.cleaners = const <String>[],
   });
 
-  /// The key of the room.
-  final int roomId;
+  /// The key of the room in the API; notes and routes use it.
+  final int number;
 
-  /// The number on the door.
-  final String roomNumber;
+  /// What the staff call the room.
+  final String name;
 
-  /// The floor.
-  final int floor;
-
-  /// The size.
-  final RoomSize size;
-
-  /// How many guests it sleeps.
-  final int capacity;
-
-  /// Whether it can be let.
+  /// Its cleaning state.
   final RoomStatus status;
 
-  /// Its cleaning and service state.
-  final HousekeepingStatus housekeepingStatus;
+  /// The names of the staff assigned to it.
+  final List<String> cleaners;
 
-  /// What may be done with it now.
-  final RoomActions actions;
+  /// The same room with another [status].
+  Room withStatus(RoomStatus status) =>
+      Room(number: number, name: name, status: status, cleaners: cleaners);
+}
+
+/// A note on a room, for example something a cleaner found.
+class RoomNote {
+  /// Creates a note.
+  const RoomNote({
+    required this.id,
+    required this.body,
+    required this.createdBy,
+    required this.createdAt,
+    this.resolvedBy,
+    this.resolvedAt,
+  });
+
+  /// The key of the note.
+  final int id;
+
+  /// What it says.
+  final String body;
+
+  /// The email of the author.
+  final String createdBy;
+
+  /// When it was written.
+  final DateTime createdAt;
+
+  /// The email of whoever ticked it off, or null.
+  final String? resolvedBy;
+
+  /// When it was ticked off, or null.
+  final DateTime? resolvedAt;
+
+  /// True once someone has ticked it off.
+  bool get isResolved => resolvedAt != null;
 }

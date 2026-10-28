@@ -28,7 +28,7 @@ void main() {
         sent.add(request);
         return answer(request);
       }),
-      baseUri: Uri.parse('https://hotel.test:8443/mobile-api'),
+      baseUri: Uri.parse('http://hotel.test:5142'),
       tokenProvider: () => token,
       onUnauthorized: () => unauthorized++,
       timeout: timeout,
@@ -42,167 +42,168 @@ void main() {
   });
 
   group('request', () {
-    test('get sends the staff token and no Authorization header', () async {
-      token = 'staff-token';
-      final client = clientAnswering(
-        (_) => _json(200, {'value': 7, 'errors': <String>[]}),
-      );
+    test('a signed-in call sends the token as a bearer token', () async {
+      token = 'jwt-1';
+      final client = clientAnswering((_) => _json(200, 7));
 
-      await client.get('/api/rooms', (v) => v);
+      await client.get('/rooms', (v) => v);
 
-      expect(sent.single.headers[ApiClient.staffTokenHeader], 'staff-token');
-      expect(sent.single.headers.containsKey('authorization'), isFalse);
+      expect(sent.single.headers['Authorization'], 'Bearer jwt-1');
     });
 
-    test('get sends no staff token header when nobody is signed in', () async {
-      final client = clientAnswering(
-        (_) => _json(200, {'value': 1, 'errors': <String>[]}),
-      );
+    test('a call with nobody signed in sends no Authorization', () async {
+      final client = clientAnswering((_) => _json(200, 1));
 
-      await client.get('/api/rooms', (v) => v);
+      await client.get('/rooms', (v) => v);
 
-      expect(sent.single.headers.containsKey('x-staff-token'), isFalse);
+      expect(sent.single.headers.containsKey('Authorization'), isFalse);
     });
 
     test('the path is put after the path of the base address', () async {
-      final client = clientAnswering(
-        (_) => _json(200, {'value': 1, 'errors': <String>[]}),
+      final client = ApiClient(
+        httpClient: MockClient((request) async {
+          sent.add(request);
+          return _json(200, 1);
+        }),
+        baseUri: Uri.parse('https://hotel.test/api/'),
+        tokenProvider: () => null,
+        onUnauthorized: () {},
       );
 
-      await client.get('/api/rooms/5', (v) => v);
+      await client.get('/rooms', (v) => v);
 
-      expect(
-        sent.single.url.toString(),
-        'https://hotel.test:8443/mobile-api/api/rooms/5',
-      );
+      expect(sent.single.url.toString(), 'https://hotel.test/api/rooms');
     });
 
-    test('post sends the body as JSON and the query', () async {
-      final client = clientAnswering(
-        (_) => _json(200, {'value': 1, 'errors': <String>[]}),
-      );
+    test('send uses the method and the body as JSON', () async {
+      final client = clientAnswering((_) => http.Response('', 200));
 
-      await client.post(
-        '/api/x',
-        (v) => v,
-        body: {'userName': 'a'},
-        query: {'requiresCleaning': 'true'},
-      );
+      await client.send('PUT', '/rooms/3/status', body: {'status': 'clean'});
 
-      expect(sent.single.method, 'POST');
-      expect(sent.single.url.query, 'requiresCleaning=true');
-      expect(sent.single.headers['content-type'], contains('application/json'));
-      expect(jsonDecode(sent.single.body), {'userName': 'a'});
+      expect(sent.single.method, 'PUT');
+      expect(sent.single.url.path, '/rooms/3/status');
+      expect(
+        sent.single.headers['Content-Type'],
+        startsWith('application/json'),
+      );
+      expect(jsonDecode(sent.single.body), {'status': 'clean'});
+    });
+
+    test('a call without a body sends none', () async {
+      final client = clientAnswering((_) => http.Response('', 200));
+
+      await client.send<void>('DELETE', '/rooms/3/notes/9');
+
+      expect(sent.single.body, isEmpty);
+      expect(sent.single.headers.containsKey('Content-Type'), isFalse);
     });
   });
 
-  group('result', () {
-    test('a 200 gives the parsed value', () async {
+  group('response', () {
+    test('the JSON body is parsed', () async {
       final client = clientAnswering(
-        (_) => _json(200, {'value': 42, 'errors': <String>[]}),
+        (_) => _json(200, [
+          {'number': 1},
+        ]),
       );
 
-      final result = await client.get<int>('/p', (v) => v! as int);
+      final result = await client.get('/rooms', (v) => (v! as List).length);
 
-      expect((result as Success<int>).value, 42);
+      expect((result as Success<int>).value, 1);
     });
 
-    test('a value of the wrong shape is a server failure', () async {
-      final client = clientAnswering(
-        (_) => _json(200, {'value': 'text', 'errors': <String>[]}),
-      );
+    test('an empty 200 is a success with no value', () async {
+      final client = clientAnswering((_) => http.Response('', 200));
+
+      final result = await client.send<void>('POST', '/rooms/1/notes');
+
+      expect(result, isA<Success<void>>());
+    });
+
+    test('a body that is not understood is a server failure', () async {
+      final client = clientAnswering((_) => http.Response('<html>', 200));
+
+      final result = await client.get('/rooms', (v) => v);
+
+      expect((result as Failed).failure.kind, FailureKind.server);
+    });
+
+    test('a parse error is a server failure', () async {
+      final client = clientAnswering((_) => _json(200, 'x'));
 
       final result = await client.get<int>(
-        '/p',
-        (v) => throw const FormatException('bad'),
+        '/rooms',
+        (_) => throw const FormatException('no'),
       );
 
-      expect((result as Failed<int>).failure.kind, FailureKind.server);
+      expect((result as Failed).failure.kind, FailureKind.server);
     });
 
-    test('a 401 with the credentials code is not an ended session', () async {
-      final client = clientAnswering(
-        (_) => _json(401, {
-          'errors': ['staff.invalid_credentials'],
-        }),
-      );
-
-      final result = await client.post<int>('/api/auth/login', (v) => 1);
-
-      expect(
-        (result as Failed<int>).failure.kind,
-        FailureKind.invalidCredentials,
-      );
-      expect(unauthorized, 0);
-    });
-
-    test('any other 401 ends the session', () async {
-      final client = clientAnswering(
-        (_) => _json(401, {
-          'errors': ['api.staff_unauthorized'],
-        }),
-      );
-
-      final result = await client.get<int>('/api/rooms', (v) => 1);
-
-      expect((result as Failed<int>).failure.kind, FailureKind.unauthorized);
-      expect(unauthorized, 1);
-    });
-
-    test('each other status maps to its kind and keeps the codes', () async {
-      final cases = <int, FailureKind>{
+    test('every status turns into its kind', () async {
+      token = 'jwt-1';
+      for (final entry in {
         403: FailureKind.forbidden,
         404: FailureKind.notFound,
-        429: FailureKind.tooManyAttempts,
         400: FailureKind.rejected,
         409: FailureKind.rejected,
         500: FailureKind.server,
         503: FailureKind.server,
-      };
-      for (final entry in cases.entries) {
+      }.entries) {
         final client = clientAnswering(
-          (_) => _json(entry.key, {
-            'errors': ['some.code'],
-          }),
+          (_) => _json(entry.key, 'Name already set'),
         );
 
-        final result = await client.get<int>('/p', (v) => 1);
+        final result = await client.get('/rooms', (v) => v);
 
-        final failure = (result as Failed<int>).failure;
-        expect(failure.kind, entry.value, reason: 'status ${entry.key}');
-        expect(failure.codes, ['some.code']);
+        expect(
+          (result as Failed).failure.kind,
+          entry.value,
+          reason: '${entry.key}',
+        );
       }
       expect(unauthorized, 0);
     });
 
-    test(
-      'an answer that is not JSON is a server failure, not a crash',
-      () async {
-        final client = clientAnswering((_) => http.Response('<html>', 502));
+    test('a 401 with a token ends the session', () async {
+      token = 'jwt-1';
+      final client = clientAnswering((_) => http.Response('', 401));
 
-        final result = await client.get<int>('/p', (v) => 1);
+      final result = await client.get('/rooms', (v) => v);
 
-        expect((result as Failed<int>).failure.kind, FailureKind.server);
-      },
-    );
-
-    test('a client error is a network failure', () async {
-      final client = clientAnswering((_) => throw http.ClientException('down'));
-
-      final result = await client.get<int>('/p', (v) => 1);
-
-      expect((result as Failed<int>).failure.kind, FailureKind.network);
+      expect((result as Failed).failure.kind, FailureKind.unauthorized);
+      expect(unauthorized, 1);
     });
 
-    test('a call that takes too long is a network failure', () async {
+    test('a 401 without a token is a wrong email or password', () async {
+      final client = clientAnswering((_) => http.Response('', 401));
+
+      final result = await client.send('POST', '/auth/login', body: {});
+
+      expect((result as Failed).failure.kind, FailureKind.invalidCredentials);
+      expect(unauthorized, 0);
+    });
+  });
+
+  group('network', () {
+    test('a connection error is a network failure', () async {
       final client = clientAnswering(
-        (_) => Completer<http.Response>().future,
-        timeout: const Duration(milliseconds: 20),
+        (_) => throw http.ClientException('refused'),
       );
 
-      final result = await client.get<int>('/p', (v) => 1);
+      final result = await client.get('/rooms', (v) => v);
 
-      expect((result as Failed<int>).failure.kind, FailureKind.network);
+      expect((result as Failed).failure.kind, FailureKind.network);
+    });
+
+    test('no answer in time is a network failure', () async {
+      final client = clientAnswering(
+        (_) => Completer<http.Response>().future,
+        timeout: const Duration(milliseconds: 10),
+      );
+
+      final result = await client.get('/rooms', (v) => v);
+
+      expect((result as Failed).failure.kind, FailureKind.network);
     });
   });
 }
