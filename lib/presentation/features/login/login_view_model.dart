@@ -22,18 +22,18 @@ class LoginViewModel extends ChangeNotifier {
   /// The text of the last failure, or null.
   String? get errorMessage => _errorMessage;
 
-  /// The problem with the user name as typed, or null.
-  String? validateUserName(String? value) =>
-      value == null || value.trim().isEmpty ? Strings.userNameRequired : null;
+  /// The problem with the email as typed, or null.
+  String? validateEmail(String? value) =>
+      value == null || value.trim().isEmpty ? Strings.emailRequired : null;
 
   /// The problem with the password as typed, or null.
   String? validatePassword(String? value) =>
       value == null || value.isEmpty ? Strings.passwordRequired : null;
 
   /// Signs in. On success the session controller shows the rooms.
-  Future<void> submit(String userName, String password) async {
+  Future<void> submit(String email, String password) async {
     if (_isBusy ||
-        validateUserName(userName) != null ||
+        validateEmail(email) != null ||
         validatePassword(password) != null) {
       return;
     }
@@ -41,7 +41,7 @@ class LoginViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final result = await _auth.signIn(userName.trim(), password);
+    final result = await _auth.signIn(email.trim(), password);
     switch (result) {
       case Success(:final value):
         await _session.signIn(value);

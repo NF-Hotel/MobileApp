@@ -1,33 +1,20 @@
-// ADR-0015: the app holds no token of the web application and keeps the staff
-// token only in secure storage (Go/No-Go criterion 5 of MIL-029).
+// The app keeps the access token only in secure storage and holds no secret of
+// its own. The token itself is sent as a bearer token, which the LoginApi needs.
 
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-List<File> _sources(String folder) =>
-    Directory(folder)
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.dart'))
-        .toList();
+List<File> _sources(String folder) => Directory(folder)
+    .listSync(recursive: true)
+    .whereType<File>()
+    .where((file) => file.path.endsWith('.dart'))
+    .toList();
 
 void main() {
   final lib = _sources('lib');
 
-  test('the app sends no Authorization header and no bearer token', () {
-    final offenders = lib
-        .where((file) {
-          final text = file.readAsStringSync().toLowerCase();
-          return text.contains("'authorization'") || text.contains('bearer');
-        })
-        .map((file) => file.path)
-        .toList();
-
-    expect(offenders, isEmpty, reason: 'No service token belongs in the app.');
-  });
-
-  test('the staff token is not kept in plain preferences', () {
+  test('the access token is not kept in plain preferences', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final offenders = lib
         .where((file) => file.readAsStringSync().contains('shared_preferences'))

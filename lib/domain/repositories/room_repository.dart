@@ -1,21 +1,24 @@
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/result.dart';
 
-/// Reads rooms and changes their cleaning and service state through the API.
+/// Reads rooms and their notes and changes them through the API. A cleaner only
+/// sees and changes the rooms they are assigned to.
 abstract interface class RoomRepository {
-  /// All rooms.
+  /// The rooms the signed-in member may see, in the order of their numbers.
   Future<Result<List<Room>>> readAll();
 
-  /// One room by its key.
-  Future<Result<Room>> read(int roomId);
+  /// Sets the cleaning state of [room].
+  Future<Result<void>> setStatus(int room, RoomStatus status);
 
-  /// Does [action] on the room and returns the room as it is afterwards.
-  ///
-  /// [requiresCleaning] is used by [RoomAction.completeService] only: whether
-  /// cleaning follows the service.
-  Future<Result<Room>> perform(
-    int roomId,
-    RoomAction action, {
-    bool requiresCleaning = false,
-  });
+  /// The notes of [room], newest first.
+  Future<Result<List<RoomNote>>> readNotes(int room);
+
+  /// Adds a note to [room].
+  Future<Result<void>> addNote(int room, String body);
+
+  /// Ticks a note off, or ticks it on again.
+  Future<Result<void>> setResolved(int room, int noteId, bool resolved);
+
+  /// Deletes a note.
+  Future<Result<void>> deleteNote(int room, int noteId);
 }

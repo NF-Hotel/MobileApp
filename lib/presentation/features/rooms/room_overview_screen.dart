@@ -11,7 +11,7 @@ import 'package:mobil_application/presentation/features/rooms/room_view_screen.d
 import 'package:mobil_application/presentation/session/session_controller.dart';
 import 'package:mobil_application/presentation/shared/strings.dart';
 
-/// All rooms of the hotel, with their housekeeping state.
+/// The rooms the member may see, with their cleaning state.
 class RoomOverviewScreen extends StatefulWidget {
   /// Creates the screen.
   const RoomOverviewScreen({
@@ -45,7 +45,11 @@ class _RoomOverviewScreenState extends State<RoomOverviewScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => RoomViewScreen(
-          viewModel: RoomViewModel(rooms: widget.rooms, room: room),
+          viewModel: RoomViewModel(
+            rooms: widget.rooms,
+            room: room,
+            viewer: widget.session.session!,
+          ),
         ),
       ),
     );
@@ -64,7 +68,7 @@ class _RoomOverviewScreenState extends State<RoomOverviewScreen> {
           if (session != null)
             Center(
               child: Text(
-                '${session.userName} (${Strings.role(session.role)})',
+                '${session.displayName} (${Strings.role(session.role)})',
                 key: const ValueKey('signedInAs'),
               ),
             ),
@@ -143,7 +147,7 @@ class _RoomOverviewBody extends StatelessWidget {
             itemBuilder: (context, index) {
               final room = viewModel.rooms[index];
               return RoomTile(
-                key: ValueKey('room-${room.roomId}'),
+                key: ValueKey('room-${room.number}'),
                 room: room,
                 onTap: () => onOpen(room),
               );

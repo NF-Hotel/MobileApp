@@ -1,22 +1,18 @@
 /// What went wrong with a call to the API, as the screens need to tell it.
 enum FailureKind {
-  /// The user name or the password is wrong.
+  /// The email or the password is wrong.
   invalidCredentials,
 
-  /// Too many failed sign-ins; try again later.
-  tooManyAttempts,
-
-  /// The staff token is missing, expired or not accepted: sign in again.
+  /// The token is missing, expired or not accepted: sign in again.
   unauthorized,
 
-  /// The role of the member of staff does not hold the permission.
+  /// The member may not do that, for example a room they are not assigned to.
   forbidden,
 
   /// The room or the route does not exist.
   notFound,
 
-  /// The API refused the request, for example an action that the room state
-  /// does not allow.
+  /// The API refused the request, for example a value it does not know.
   rejected,
 
   /// The API could not be reached, or did not answer in time.
@@ -26,19 +22,16 @@ enum FailureKind {
   server,
 }
 
-/// A failed call: the kind, and the error codes that the API sent.
+/// A failed call.
 class ApiFailure {
   /// Creates a failure.
-  const ApiFailure(this.kind, [this.codes = const <String>[]]);
+  const ApiFailure(this.kind);
 
   /// What went wrong.
   final FailureKind kind;
 
-  /// The error codes of the API envelope, for example `room.not_found`.
-  final List<String> codes;
-
   @override
-  String toString() => 'ApiFailure($kind, $codes)';
+  String toString() => 'ApiFailure($kind)';
 }
 
 /// The outcome of a call: a value, or a failure the screen renders as state.

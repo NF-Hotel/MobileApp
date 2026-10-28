@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The LoginApi runs on plain http (port 5142) in development. Android
+         blocks cleartext by default, so only a debug build allows it. -->
+    <application android:usesCleartextTraffic="true"/>
+</manifest>
