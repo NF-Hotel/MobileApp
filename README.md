@@ -50,6 +50,18 @@ flutter run --dart-define=API_BASE_URL=http://localhost:5142
 The API serves plain http, so only a debug build on Android allows cleartext
 (`android/app/src/debug/AndroidManifest.xml`).
 
+## Release build
+
+A release build is obfuscated: R8 shrinks and obfuscates the Java/Kotlin code
+(`android/app/build.gradle.kts`), and the Dart code needs two flags:
+
+```bash
+flutter build apk --release --obfuscate --split-debug-info=build/symbols
+```
+
+Keep `build/symbols` for each release; without it a crash stack trace cannot be
+read (`flutter symbolize -i <trace> -d build/symbols/app.android-arm64.symbols`).
+
 ## Tests
 
 ```bash
