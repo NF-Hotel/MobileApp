@@ -68,7 +68,7 @@ Future<void> _waitFor(WidgetTester tester, Finder finder) async {
       return;
     }
   }
-  fail('Did not find ${finder.description} in 30 seconds.');
+  fail('Did not find ${finder.toString()} in 30 seconds.');
 }
 
 Future<void> _signIn(WidgetTester tester, String user, String password) async {
