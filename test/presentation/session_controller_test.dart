@@ -14,7 +14,7 @@ void main() {
       await controller.restore();
 
       expect(controller.isRestoring, isFalse);
-      expect(controller.session?.email, 'hilda@hotel.test');
+      expect(controller.session?.userName, 'hilda');
       expect(controller.token, 'token-1');
     });
 
@@ -65,9 +65,9 @@ void main() {
         var notified = 0;
         controller.addListener(() => notified++);
 
-        await controller.signIn(validSession(role: StaffRole.admin));
+        await controller.signIn(validSession(role: StaffRole.manager));
 
-        expect(controller.session?.role, StaffRole.admin);
+        expect(controller.session?.role, StaffRole.manager);
         expect(store.saved?.token, 'token-1');
         expect(notified, 1);
       },

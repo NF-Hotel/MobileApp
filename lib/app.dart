@@ -4,15 +4,12 @@ import 'package:mobil_application/domain/repositories/auth_repository.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
 import 'package:mobil_application/presentation/features/login/login_screen.dart';
 import 'package:mobil_application/presentation/features/login/login_view_model.dart';
-import 'package:mobil_application/presentation/features/name/name_screen.dart';
-import 'package:mobil_application/presentation/features/name/name_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_screen.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_view_model.dart';
 import 'package:mobil_application/presentation/session/session_controller.dart';
 import 'package:mobil_application/presentation/shared/strings.dart';
 
-/// The app: the sign-in until a member of staff is signed in, then their name
-/// if the account has none yet, then the rooms.
+/// The app: the sign-in until a member of staff is signed in, then the rooms.
 class NfHotelApp extends StatefulWidget {
   /// Creates the app over its dependencies, which `main` builds.
   const NfHotelApp({
@@ -37,16 +34,13 @@ class NfHotelApp extends StatefulWidget {
 
 class _NfHotelAppState extends State<NfHotelApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
-  // set in initState, before the first build
-  late final LoginViewModel _login;
-  late final NameViewModel _name;
+  late final LoginViewModel _login; // set in initState, before the first build
   RoomOverviewViewModel? _overview;
 
   @override
   void initState() {
     super.initState();
     _login = LoginViewModel(auth: widget.auth, session: widget.session);
-    _name = NameViewModel(auth: widget.auth, session: widget.session);
     widget.session.addListener(_onSessionChanged);
   }
 
@@ -79,12 +73,8 @@ class _NfHotelAppState extends State<NfHotelApp> {
               body: Center(child: CircularProgressIndicator()),
             );
           }
-          final session = widget.session.session;
-          if (session == null) {
+          if (widget.session.session == null) {
             return LoginScreen(viewModel: _login);
-          }
-          if (!session.hasName) {
-            return NameScreen(viewModel: _name, session: widget.session);
           }
           return RoomOverviewScreen(
             viewModel: _overview ??= RoomOverviewViewModel(rooms: widget.rooms),

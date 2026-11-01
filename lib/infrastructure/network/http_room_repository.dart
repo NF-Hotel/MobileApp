@@ -4,43 +4,42 @@ import 'package:mobil_application/domain/result.dart';
 import 'package:mobil_application/infrastructure/network/api_client.dart';
 import 'package:mobil_application/infrastructure/network/api_json.dart';
 
-/// Reads and changes rooms and their notes through `/rooms`.
+/// Reads and changes rooms through `/api/rooms`.
 class HttpRoomRepository implements RoomRepository {
   /// Creates the repository over [client].
   const HttpRoomRepository(this._client);
 
+  static const String _rooms = '/api/rooms';
+
   final ApiClient _client;
 
   @override
-  Future<Result<List<Room>>> readAll() => _client.get('/rooms', ApiJson.rooms);
+  Future<Result<List<Room>>> readAll() => _client.get(_rooms, ApiJson.rooms);
 
   @override
-  Future<Result<void>> setStatus(int room, RoomStatus status) => _client.send(
-    'PUT',
-    '/rooms/$room/status',
-    body: <String, Object?>{'status': status.name},
+  Future<Result<Room>> read(int roomId) =>
+      _client.get('$_rooms/$roomId', ApiJson.room);
+
+  @override
+  Future<Result<Room>> perform(
+    int roomId,
+    RoomAction action, {
+    bool requiresCleaning = false,
+  }) => _client.post(
+    '$_rooms/$roomId/${_segment(action)}',
+    ApiJson.room,
+    query: action == RoomAction.completeService
+        ? <String, String>{'requiresCleaning': '$requiresCleaning'}
+        : null,
   );
 
-  @override
-  Future<Result<List<RoomNote>>> readNotes(int room) =>
-      _client.get('/rooms/$room/notes', ApiJson.notes);
-
-  @override
-  Future<Result<void>> addNote(int room, String body) => _client.send(
-    'POST',
-    '/rooms/$room/notes',
-    body: <String, Object?>{'body': body},
-  );
-
-  @override
-  Future<Result<void>> setResolved(int room, int noteId, bool resolved) =>
-      _client.send(
-        'PUT',
-        '/rooms/$room/notes/$noteId/resolved',
-        body: <String, Object?>{'resolved': resolved},
-      );
-
-  @override
-  Future<Result<void>> deleteNote(int room, int noteId) =>
-      _client.send('DELETE', '/rooms/$room/notes/$noteId');
+  static String _segment(RoomAction action) => switch (action) {
+    RoomAction.markDailyCleaningDue => 'mark-daily-cleaning-due',
+    RoomAction.markDepartureCleaningDue => 'mark-departure-cleaning-due',
+    RoomAction.startCleaning => 'start-cleaning',
+    RoomAction.completeCleaning => 'complete-cleaning',
+    RoomAction.reportServiceNeeded => 'report-service-needed',
+    RoomAction.startService => 'start-service',
+    RoomAction.completeService => 'complete-service',
+  };
 }

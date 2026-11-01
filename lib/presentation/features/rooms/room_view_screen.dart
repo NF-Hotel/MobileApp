@@ -3,11 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
-import 'package:mobil_application/presentation/features/rooms/room_tile.dart';
 import 'package:mobil_application/presentation/features/rooms/room_view_model.dart';
 import 'package:mobil_application/presentation/shared/strings.dart';
 
-/// One room: its cleaning state, who is assigned, and its notes.
+/// One room with the cleaning and service actions that its state allows.
 class RoomViewScreen extends StatefulWidget {
   /// Creates the screen over its [viewModel].
   const RoomViewScreen({required this.viewModel, super.key});
@@ -20,24 +19,43 @@ class RoomViewScreen extends StatefulWidget {
 }
 
 class _RoomViewScreenState extends State<RoomViewScreen> {
-  final _newNote = TextEditingController();
-
   @override
   void initState() {
     super.initState();
     unawaited(widget.viewModel.load());
   }
 
-  @override
-  void dispose() {
-    _newNote.dispose();
-    super.dispose();
-  }
-
-  Future<void> _addNote() async {
-    if (await widget.viewModel.addNote(_newNote.text)) {
-      _newNote.clear();
+  Future<void> _perform(RoomAction action) async {
+    var requiresCleaning = false;
+    if (action == RoomAction.completeService) {
+      final answer = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text(Strings.cleaningFollows),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(Strings.cancel),
+            ),
+            TextButton(
+              key: const ValueKey('cleaningFollowsNo'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(Strings.no),
+            ),
+            TextButton(
+              key: const ValueKey('cleaningFollowsYes'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(Strings.yes),
+            ),
+          ],
+        ),
+      );
+      if (answer == null) {
+        return;
+      }
+      requiresCleaning = answer;
     }
+    await widget.viewModel.perform(action, requiresCleaning: requiresCleaning);
   }
 
   @override
@@ -48,43 +66,30 @@ class _RoomViewScreenState extends State<RoomViewScreen> {
         final viewModel = widget.viewModel;
         final room = viewModel.room;
         final error = viewModel.errorMessage;
-        final busy = viewModel.isBusy;
+        final actions = viewModel.actions;
         return Scaffold(
-          appBar: AppBar(title: Text(room.name)),
+          appBar: AppBar(
+            title: Text('${Strings.roomTitle} ${room.roomNumber}'),
+          ),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              if (busy) const LinearProgressIndicator(),
-              Text(
-                Strings.status,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final status in RoomStatus.values)
-                    ChoiceChip(
-                      key: ValueKey('status-${status.name}'),
-                      avatar: Icon(roomStatusIcon(status)),
-                      label: Text(Strings.roomStatus(status)),
-                      selected: room.status == status,
-                      onSelected: busy || room.status == status
-                          ? null
-                          : (_) => unawaited(viewModel.setStatus(status)),
-                    ),
-                ],
+              if (viewModel.isBusy) const LinearProgressIndicator(),
+              ListTile(
+                title: Text(Strings.housekeeping(room.housekeepingStatus)),
+                subtitle: const Text('Cleaning and service'),
               ),
               ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  room.cleaners.isEmpty
-                      ? Strings.nobodyAssigned
-                      : room.cleaners.join(', '),
-                ),
-                subtitle: const Text(Strings.assigned),
+                title: Text(Strings.roomStatus(room.status)),
+                subtitle: const Text('Status'),
               ),
+              ListTile(
+                title: Text(
+                  '${Strings.size(room.size)}, sleeps ${room.capacity}, '
+                  'floor ${room.floor}',
+                ),
+              ),
+              const Divider(),
               if (error != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
@@ -96,63 +101,19 @@ class _RoomViewScreenState extends State<RoomViewScreen> {
                     ),
                   ),
                 ),
-              const Divider(),
-              Text(
-                Strings.notes,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              TextField(
-                key: const ValueKey('newNote'),
-                controller: _newNote,
-                enabled: !busy,
-                minLines: 1,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  labelText: Strings.newNote,
-                  suffixIcon: IconButton(
-                    key: const ValueKey('addNote'),
-                    tooltip: Strings.addNote,
-                    icon: const Icon(Icons.send),
-                    onPressed: busy ? null : () => unawaited(_addNote()),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (viewModel.notes.isEmpty)
-                const Text(Strings.noNotes)
+              if (actions.isEmpty)
+                const Text(Strings.nothingToDo)
               else
-                for (final note in viewModel.notes)
-                  ListTile(
-                    key: ValueKey('note-${note.id}'),
-                    contentPadding: EdgeInsets.zero,
-                    leading: Checkbox(
-                      key: ValueKey('resolve-${note.id}'),
-                      value: note.isResolved,
-                      onChanged: busy || !viewModel.canToggle(note)
+                for (final action in actions)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: FilledButton(
+                      key: ValueKey('action-${action.name}'),
+                      onPressed: viewModel.isBusy
                           ? null
-                          : (value) => unawaited(
-                              viewModel.setResolved(note, value ?? false),
-                            ),
+                          : () => unawaited(_perform(action)),
+                      child: Text(Strings.action(action)),
                     ),
-                    title: Text(
-                      note.body,
-                      style: note.isResolved
-                          ? const TextStyle(
-                              decoration: TextDecoration.lineThrough,
-                            )
-                          : null,
-                    ),
-                    subtitle: Text(Strings.noteByline(note)),
-                    trailing: viewModel.canDelete(note)
-                        ? IconButton(
-                            key: ValueKey('delete-${note.id}'),
-                            tooltip: Strings.deleteNote,
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: busy
-                                ? null
-                                : () => unawaited(viewModel.deleteNote(note)),
-                          )
-                        : null,
                   ),
             ],
           ),

@@ -17,8 +17,7 @@ enum RoomOverviewState {
   error,
 }
 
-/// The state of the room overview: the rooms the member may see, in the order
-/// the API gives them.
+/// The state of the room overview: all rooms, in the order of their numbers.
 class RoomOverviewViewModel extends ChangeNotifier {
   /// Creates the view model.
   RoomOverviewViewModel({required this._rooms});
@@ -32,7 +31,7 @@ class RoomOverviewViewModel extends ChangeNotifier {
   /// What the overview is doing.
   RoomOverviewState get state => _state;
 
-  /// The rooms.
+  /// The rooms, by floor and then by number.
   List<Room> get rooms => _list;
 
   /// The text of the failure when [state] is [RoomOverviewState.error].
@@ -47,12 +46,17 @@ class RoomOverviewViewModel extends ChangeNotifier {
     final result = await _rooms.readAll();
     switch (result) {
       case Success(:final value):
-        _list = value;
+        _list = [...value]..sort(_byFloorThenNumber);
         _state = RoomOverviewState.ready;
       case Failed(:final failure):
         _errorMessage = Strings.failure(failure);
         _state = RoomOverviewState.error;
     }
     notifyListeners();
+  }
+
+  static int _byFloorThenNumber(Room a, Room b) {
+    final byFloor = a.floor.compareTo(b.floor);
+    return byFloor != 0 ? byFloor : a.roomNumber.compareTo(b.roomNumber);
   }
 }
