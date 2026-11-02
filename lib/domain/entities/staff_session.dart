@@ -7,7 +7,15 @@ enum StaffRole {
   manager,
 
   /// Reads rooms and updates their cleaning and service status.
-  housekeeping,
+  housekeeping;
+
+  /// Whether the role may write a service note on a room. Only what the app
+  /// offers: the API refuses everybody else as well.
+  bool get canWriteServiceNotes => this != StaffRole.receptionist;
+
+  /// Whether the role may take a service note back from the history. Only what
+  /// the app offers: the API refuses everybody else as well.
+  bool get canReopenServiceNotes => this == StaffRole.manager;
 }
 
 /// A signed-in member of staff and the token the API gave them.

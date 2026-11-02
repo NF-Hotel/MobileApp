@@ -5,11 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
+import 'package:mobil_application/domain/entities/room_service_note.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/result.dart';
 import 'package:mobil_application/infrastructure/network/api_client.dart';
 import 'package:mobil_application/infrastructure/network/http_auth_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_room_repository.dart';
+import 'package:mobil_application/infrastructure/network/http_room_service_note_repository.dart';
 
 /// The room as the API sends it: enums as numbers, camelCase names.
 Map<String, Object?> roomJson({
@@ -40,6 +42,24 @@ Map<String, Object?> roomJson({
         'canStartService': false,
         'canCompleteService': false,
       },
+};
+
+/// The service note as the API sends it (`RoomServiceNoteDto`): the done fields
+/// are null while the note is open.
+Map<String, Object?> noteJson({
+  String? doneBy,
+  String? doneAt,
+  String? undoableUntil,
+}) => {
+  'id': 12,
+  'roomId': 7,
+  'text': 'The tap drips',
+  'writtenBy': 'hilda',
+  'writtenAt': '2026-11-02T10:05:00+00:00',
+  'doneBy': doneBy,
+  'doneAt': doneAt,
+  'undoableUntil': undoableUntil,
+  'isDone': doneAt != null,
 };
 
 http.Response _ok(Object? value) => http.Response(
@@ -196,6 +216,120 @@ void main() {
       expect(
         (result as Success<Room>).value.housekeepingStatus,
         HousekeepingStatus.serviceInProgress,
+      );
+    });
+  });
+
+  group('HttpRoomServiceNoteRepository', () {
+    late HttpRoomServiceNoteRepository notes;
+
+    setUp(() {
+      notes = HttpRoomServiceNoteRepository(client);
+      answer = (_) => _ok(noteJson());
+    });
+
+    test('readCurrent reads an open note, with nothing about done', () async {
+      answer = (_) => _ok([noteJson()]);
+
+      final result = await notes.readCurrent();
+
+      final note = (result as Success<List<RoomServiceNote>>).value.single;
+      expect(note.id, 12);
+      expect(note.roomId, 7);
+      expect(note.text, 'The tap drips');
+      expect(note.writtenBy, 'hilda');
+      expect(note.writtenAt, DateTime.utc(2026, 11, 2, 10, 5));
+      expect(note.isDone, isFalse);
+      expect(note.doneBy, isNull);
+      expect(note.undoableUntil, isNull);
+      expect(sent.single.method, 'GET');
+      expect(sent.single.url.path, '/mobile-api/api/room-service-notes');
+    });
+
+    test('a done note says who, when and until when', () async {
+      answer = (_) => _ok(
+        noteJson(
+          doneBy: 'tom',
+          doneAt: '2026-11-02T10:10:00+00:00',
+          undoableUntil: '2026-11-02T10:15:00+00:00',
+        ),
+      );
+
+      final result = await notes.markDone(12);
+
+      final note = (result as Success<RoomServiceNote>).value;
+      expect(note.isDone, isTrue);
+      expect(note.doneBy, 'tom');
+      expect(note.doneAt, DateTime.utc(2026, 11, 2, 10, 10));
+      expect(note.undoableUntil, DateTime.utc(2026, 11, 2, 10, 15));
+    });
+
+    test('readHistory asks for the room by its key', () async {
+      answer = (_) => _ok(<Object?>[]);
+
+      final result = await notes.readHistory(7);
+
+      expect((result as Success<List<RoomServiceNote>>).value, isEmpty);
+      expect(
+        sent.single.url.path,
+        '/mobile-api/api/room-service-notes/history/7',
+      );
+    });
+
+    test('create posts the room and the text, and no name', () async {
+      await notes.create(7, 'The tap drips');
+
+      expect(sent.single.method, 'POST');
+      expect(sent.single.url.path, '/mobile-api/api/room-service-notes');
+      expect(jsonDecode(sent.single.body), {
+        'roomId': 7,
+        'text': 'The tap drips',
+      });
+    });
+
+    test('each change posts to its own path', () async {
+      final calls = <String, Future<Object?> Function()>{
+        'done': () => notes.markDone(12),
+        'undo-done': () => notes.undoDone(12),
+        'reopen': () => notes.reopen(12),
+      };
+      for (final entry in calls.entries) {
+        sent.clear();
+
+        await entry.value();
+
+        expect(sent.single.method, 'POST', reason: entry.key);
+        expect(
+          sent.single.url.path,
+          '/mobile-api/api/room-service-notes/12/${entry.key}',
+        );
+      }
+    });
+
+    test('an undo too late is a rejection with the code of the API', () async {
+      answer = (_) => http.Response(
+        jsonEncode({
+          'value': null,
+          'errors': ['room_service_note.undo_window_closed'],
+        }),
+        409,
+      );
+
+      final result = await notes.undoDone(12);
+
+      final failure = (result as Failed<RoomServiceNote>).failure;
+      expect(failure.kind, FailureKind.rejected);
+      expect(failure.codes, ['room_service_note.undo_window_closed']);
+    });
+
+    test('a note that is not understood is a server failure', () async {
+      answer = (_) => _ok(noteJson()..['writtenAt'] = 'yesterday');
+
+      final result = await notes.markDone(12);
+
+      expect(
+        (result as Failed<RoomServiceNote>).failure.kind,
+        FailureKind.server,
       );
     });
   });

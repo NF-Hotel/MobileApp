@@ -9,6 +9,7 @@ import 'package:mobil_application/infrastructure/network/api_config.dart';
 import 'package:mobil_application/infrastructure/network/http_auth_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_client_factory.dart';
 import 'package:mobil_application/infrastructure/network/http_room_repository.dart';
+import 'package:mobil_application/infrastructure/network/http_room_service_note_repository.dart';
 import 'package:mobil_application/infrastructure/storage/secure_session_store.dart';
 import 'package:mobil_application/presentation/session/session_controller.dart';
 
@@ -33,6 +34,7 @@ void main() {
       session: session,
       auth: HttpAuthRepository(client),
       rooms: HttpRoomRepository(client),
+      serviceNotes: HttpRoomServiceNoteRepository(client),
     ),
   );
 }

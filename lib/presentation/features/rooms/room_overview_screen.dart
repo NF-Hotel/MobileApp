@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
+import 'package:mobil_application/domain/repositories/room_service_note_repository.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_view_model.dart';
+import 'package:mobil_application/presentation/features/rooms/room_service_notes_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_tile.dart';
 import 'package:mobil_application/presentation/features/rooms/room_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_view_screen.dart';
@@ -17,6 +19,7 @@ class RoomOverviewScreen extends StatefulWidget {
   const RoomOverviewScreen({
     required this.viewModel,
     required this.rooms,
+    required this.serviceNotes,
     required this.session,
     super.key,
   });
@@ -26,6 +29,9 @@ class RoomOverviewScreen extends StatefulWidget {
 
   /// Used to open a room.
   final RoomRepository rooms;
+
+  /// Used for the service notes of an opened room.
+  final RoomServiceNoteRepository serviceNotes;
 
   /// Who is signed in; the screen can sign them out.
   final SessionController session;
@@ -42,10 +48,19 @@ class _RoomOverviewScreenState extends State<RoomOverviewScreen> {
   }
 
   Future<void> _open(Room room) async {
+    final session = widget.session.session;
+    if (session == null) {
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => RoomViewScreen(
           viewModel: RoomViewModel(rooms: widget.rooms, room: room),
+          notes: RoomServiceNotesViewModel(
+            notes: widget.serviceNotes,
+            roomId: room.roomId,
+            role: session.role,
+          ),
         ),
       ),
     );

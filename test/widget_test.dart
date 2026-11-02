@@ -34,7 +34,12 @@ void main() {
   ) async {
     final session = SessionController(store: store, now: () => testNow);
     await tester.pumpWidget(
-      NfHotelApp(session: session, auth: auth, rooms: rooms),
+      NfHotelApp(
+        session: session,
+        auth: auth,
+        rooms: rooms,
+        serviceNotes: FakeRoomServiceNoteRepository(),
+      ),
     );
     await session.restore();
     await tester.pumpAndSettle();

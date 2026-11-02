@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
+import 'package:mobil_application/domain/entities/room_service_note.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/result.dart';
 import 'package:mobil_application/infrastructure/network/api_client.dart';
@@ -21,6 +22,7 @@ import 'package:mobil_application/infrastructure/network/api_config.dart';
 import 'package:mobil_application/infrastructure/network/http_auth_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_client_factory.dart';
 import 'package:mobil_application/infrastructure/network/http_room_repository.dart';
+import 'package:mobil_application/infrastructure/network/http_room_service_note_repository.dart';
 
 void main() {
   // dev-staff.env of the website repository has the receptionist and the
@@ -161,6 +163,64 @@ void main() {
         expect(
           (result as Failed<Room>).failure.kind,
           isNot(FailureKind.network),
+        );
+      });
+
+      test(
+        'housekeeping writes a note, ticks it and unticks it within the window',
+        () async {
+          final session = await signIn('housekeeping');
+          final rooms = HttpRoomRepository(client);
+          final notes = HttpRoomServiceNoteRepository(client);
+          final list = (await rooms.readAll() as Success<List<Room>>).value;
+          final room = list.firstWhere(
+            (r) =>
+                r.housekeepingStatus == HousekeepingStatus.clean &&
+                r.status == RoomStatus.available,
+          );
+
+          final created = await notes.create(room.roomId, 'End-to-end check');
+          final note = (created as Success<RoomServiceNote>).value;
+          expect(note.writtenBy, session.userName);
+          expect(note.isDone, isFalse);
+
+          final current = await notes.readCurrent();
+          expect(
+            (current as Success<List<RoomServiceNote>>).value.map((n) => n.id),
+            contains(note.id),
+          );
+
+          final done = await notes.markDone(note.id);
+          final marked = (done as Success<RoomServiceNote>).value;
+          expect(marked.doneBy, session.userName);
+          expect(marked.undoableUntil, isNotNull);
+
+          final undone = await notes.undoDone(note.id);
+          expect((undone as Success<RoomServiceNote>).value.isDone, isFalse);
+
+          final redone = await notes.markDone(note.id);
+          expect(redone, isA<Success<RoomServiceNote>>());
+
+          // The note flagged the room: put it back for the other tests.
+          final flagged = await rooms.read(room.roomId);
+          expect(
+            (flagged as Success<Room>).value.housekeepingStatus,
+            HousekeepingStatus.serviceRequired,
+          );
+          await rooms.perform(room.roomId, RoomAction.startService);
+          await rooms.perform(room.roomId, RoomAction.completeService);
+        },
+      );
+
+      test('only a manager takes a note back from the history', () async {
+        await signIn('housekeeping');
+
+        // The API checks the role before it looks for the note.
+        final result = await HttpRoomServiceNoteRepository(client).reopen(1);
+
+        expect(
+          (result as Failed<RoomServiceNote>).failure.kind,
+          FailureKind.forbidden,
         );
       });
 

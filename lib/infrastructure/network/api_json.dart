@@ -1,4 +1,5 @@
 import 'package:mobil_application/domain/entities/room.dart';
+import 'package:mobil_application/domain/entities/room_service_note.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 
 /// Reads the JSON of the API into the entities of the app. The API sends enums
@@ -44,6 +45,29 @@ abstract final class ApiJson {
     return json.map(room).toList(growable: false);
   }
 
+  /// Reads one service note.
+  static RoomServiceNote serviceNote(Object? json) {
+    final map = _map(json);
+    return RoomServiceNote(
+      id: _int(map, 'id'),
+      roomId: _int(map, 'roomId'),
+      text: _string(map, 'text'),
+      writtenBy: _string(map, 'writtenBy'),
+      writtenAt: DateTime.parse(_string(map, 'writtenAt')),
+      doneBy: map['doneBy'] == null ? null : _string(map, 'doneBy'),
+      doneAt: _optionalDate(map, 'doneAt'),
+      undoableUntil: _optionalDate(map, 'undoableUntil'),
+    );
+  }
+
+  /// Reads a list of service notes.
+  static List<RoomServiceNote> serviceNotes(Object? json) {
+    if (json is! List<Object?>) {
+      throw const FormatException('A list of service notes was expected.');
+    }
+    return json.map(serviceNote).toList(growable: false);
+  }
+
   static RoomActions _actions(Object? json) {
     final map = _map(json);
     bool flag(String key) => map[key] == true;
@@ -80,6 +104,9 @@ abstract final class ApiJson {
     }
     throw FormatException('"$key" should be a whole number.');
   }
+
+  static DateTime? _optionalDate(Map<String, Object?> map, String key) =>
+      map[key] == null ? null : DateTime.parse(_string(map, key));
 
   /// Reads an enum from its number (counted from [firstNumber]) or its name.
   static T _enum<T extends Enum>(

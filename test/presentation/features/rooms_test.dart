@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
+import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/result.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_screen.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_view_model.dart';
+import 'package:mobil_application/presentation/features/rooms/room_service_notes_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_view_screen.dart';
 import 'package:mobil_application/presentation/session/session_controller.dart';
@@ -152,6 +154,7 @@ void main() {
         home: RoomOverviewScreen(
           viewModel: RoomOverviewViewModel(rooms: rooms),
           rooms: rooms,
+          serviceNotes: FakeRoomServiceNoteRepository(),
           session: session,
         ),
       ),
@@ -226,7 +229,16 @@ void main() {
       rooms.rooms = [room];
       final viewModel = RoomViewModel(rooms: rooms, room: room);
       await tester.pumpWidget(
-        MaterialApp(home: RoomViewScreen(viewModel: viewModel)),
+        MaterialApp(
+          home: RoomViewScreen(
+            viewModel: viewModel,
+            notes: RoomServiceNotesViewModel(
+              notes: FakeRoomServiceNoteRepository(),
+              roomId: room.roomId,
+              role: StaffRole.housekeeping,
+            ),
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       return viewModel;

@@ -15,6 +15,17 @@ ADR-0015).
   has expired (8 hours), returns the app to the sign-in.
 - The role decides what the API allows: Housekeeping changes cleaning and
   service, and gets 403 on anything else.
+- The service notes of a room use `/api/room-service-notes`. That route has to be
+  on the staff-token list (`StaffTokenRoutes`) and the nginx filter
+  (`ops/deploy/nginx/snippets/mobile-api.conf`) of the website repository.
+
+## Service notes
+
+Under each room, Housekeeping and Managers write a note, which also reports that
+the room needs service. Everybody can tick a note as done and untick it for five
+minutes. After that it is in the history of the room, where only a Manager can
+untick it. The API decides all of this; the app reads the notes again every 30
+seconds and shows the answer.
 
 ## Flutter version
 

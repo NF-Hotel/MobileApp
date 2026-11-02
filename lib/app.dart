@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:mobil_application/domain/repositories/auth_repository.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
+import 'package:mobil_application/domain/repositories/room_service_note_repository.dart';
 import 'package:mobil_application/presentation/features/login/login_screen.dart';
 import 'package:mobil_application/presentation/features/login/login_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_screen.dart';
@@ -16,6 +17,7 @@ class NfHotelApp extends StatefulWidget {
     required this.session,
     required this.auth,
     required this.rooms,
+    required this.serviceNotes,
     super.key,
   });
 
@@ -27,6 +29,9 @@ class NfHotelApp extends StatefulWidget {
 
   /// Reads and changes rooms.
   final RoomRepository rooms;
+
+  /// Reads and changes the service notes of the rooms.
+  final RoomServiceNoteRepository serviceNotes;
 
   @override
   State<NfHotelApp> createState() => _NfHotelAppState();
@@ -79,6 +84,7 @@ class _NfHotelAppState extends State<NfHotelApp> {
           return RoomOverviewScreen(
             viewModel: _overview ??= RoomOverviewViewModel(rooms: widget.rooms),
             rooms: widget.rooms,
+            serviceNotes: widget.serviceNotes,
             session: widget.session,
           );
         },

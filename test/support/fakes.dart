@@ -1,7 +1,9 @@
 import 'package:mobil_application/domain/entities/room.dart';
+import 'package:mobil_application/domain/entities/room_service_note.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/repositories/auth_repository.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
+import 'package:mobil_application/domain/repositories/room_service_note_repository.dart';
 import 'package:mobil_application/domain/repositories/session_store.dart';
 import 'package:mobil_application/domain/result.dart';
 
@@ -69,6 +71,151 @@ class FakeAuthRepository implements AuthRepository {
   Future<Result<StaffSession>> signIn(String userName, String password) async {
     userNames.add(userName);
     return result;
+  }
+}
+
+/// A service note; it is open unless [doneBy] is given.
+RoomServiceNote serviceNote({
+  int id = 1,
+  int roomId = 1,
+  String text = 'The tap drips',
+  String writtenBy = 'hilda',
+  String? doneBy,
+}) => RoomServiceNote(
+  id: id,
+  roomId: roomId,
+  text: text,
+  writtenBy: writtenBy,
+  writtenAt: testNow,
+  doneBy: doneBy,
+  doneAt: doneBy == null ? null : testNow,
+  undoableUntil: doneBy == null
+      ? null
+      : testNow.add(const Duration(minutes: 5)),
+);
+
+/// Holds service notes in memory and records the changes done on them. A test
+/// plays the five minutes by moving a note to [history] and by setting
+/// [changeFailure] to what the API answers.
+class FakeRoomServiceNoteRepository implements RoomServiceNoteRepository {
+  /// Creates the fake with [current] and [history].
+  FakeRoomServiceNoteRepository({
+    List<RoomServiceNote>? current,
+    List<RoomServiceNote>? history,
+    this.userName = 'hilda',
+  }) : current = current ?? <RoomServiceNote>[],
+       history = history ?? <RoomServiceNote>[];
+
+  /// The notes that are not in the history.
+  List<RoomServiceNote> current;
+
+  /// The notes in the history.
+  List<RoomServiceNote> history;
+
+  /// Who is calling, for the names on the notes.
+  final String userName;
+
+  /// Set to make every call fail.
+  ApiFailure? failure;
+
+  /// Set to make only the changes fail, so that the notes can still be read.
+  ApiFailure? changeFailure;
+
+  /// The changes asked for, as `action:noteId`, or `create:roomId:text`.
+  final List<String> changes = <String>[];
+
+  /// How many times the current notes were read.
+  int currentReads = 0;
+
+  /// Runs at each read of the current notes, before its answer is taken.
+  Future<void> Function()? beforeReadCurrent;
+
+  int _nextId = 100;
+
+  @override
+  Future<Result<List<RoomServiceNote>>> readCurrent() async {
+    currentReads++;
+    final failed = failure;
+    if (failed != null) {
+      return Failed(failed);
+    }
+    final answer = [...current];
+    await beforeReadCurrent?.call();
+    return Success(answer);
+  }
+
+  @override
+  Future<Result<List<RoomServiceNote>>> readHistory(int roomId) async {
+    final failed = failure;
+    return failed == null
+        ? Success(history.where((n) => n.roomId == roomId).toList())
+        : Failed(failed);
+  }
+
+  @override
+  Future<Result<RoomServiceNote>> create(int roomId, String text) async {
+    changes.add('create:$roomId:$text');
+    final failed = failure ?? changeFailure;
+    if (failed != null) {
+      return Failed(failed);
+    }
+    final note = serviceNote(
+      id: _nextId++,
+      roomId: roomId,
+      text: text,
+      writtenBy: userName,
+    );
+    current = [...current, note];
+    return Success(note);
+  }
+
+  @override
+  Future<Result<RoomServiceNote>> markDone(int noteId) =>
+      _change('markDone', noteId, doneBy: userName);
+
+  @override
+  Future<Result<RoomServiceNote>> undoDone(int noteId) =>
+      _change('undoDone', noteId);
+
+  @override
+  Future<Result<RoomServiceNote>> reopen(int noteId) async {
+    changes.add('reopen:$noteId');
+    final failed = failure ?? changeFailure;
+    if (failed != null) {
+      return Failed(failed);
+    }
+    final old = history.firstWhere((n) => n.id == noteId);
+    final note = serviceNote(
+      id: old.id,
+      roomId: old.roomId,
+      text: old.text,
+      writtenBy: old.writtenBy,
+    );
+    history = history.where((n) => n.id != noteId).toList();
+    current = [...current, note];
+    return Success(note);
+  }
+
+  Future<Result<RoomServiceNote>> _change(
+    String action,
+    int noteId, {
+    String? doneBy,
+  }) async {
+    changes.add('$action:$noteId');
+    final failed = failure ?? changeFailure;
+    if (failed != null) {
+      return Failed(failed);
+    }
+    final old = current.firstWhere((n) => n.id == noteId);
+    final note = serviceNote(
+      id: old.id,
+      roomId: old.roomId,
+      text: old.text,
+      writtenBy: old.writtenBy,
+      doneBy: doneBy,
+    );
+    current = [for (final n in current) n.id == noteId ? note : n];
+    return Success(note);
   }
 }
 
