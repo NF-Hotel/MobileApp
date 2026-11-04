@@ -1,5 +1,6 @@
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/entities/room_service_note.dart';
+import 'package:mobil_application/domain/entities/staff_account.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 
 /// Reads the JSON of the API into the entities of the app. The API sends enums
@@ -7,7 +8,8 @@ import 'package:mobil_application/domain/entities/staff_session.dart';
 /// that does not fit is a [FormatException], which the client turns into a
 /// server failure.
 abstract final class ApiJson {
-  /// Reads a session from the value of `POST /api/auth/login`.
+  /// Reads a session from the value of `POST /api/auth/login`, of the change
+  /// of the own password and of the own name.
   static StaffSession session(Object? json) {
     final map = _map(json);
     return StaffSession(
@@ -15,8 +17,40 @@ abstract final class ApiJson {
       expiresAt: DateTime.parse(_string(map, 'expiresAt')),
       userName: _string(map, 'userName'),
       role: _enum(map, 'role', StaffRole.values, firstNumber: 1),
+      mustChangePassword: map['mustChangePassword'] == true,
+      firstName: _optionalString(map, 'firstName'),
+      lastName: _optionalString(map, 'lastName'),
     );
   }
+
+  /// Reads one staff account (MIL-059).
+  static StaffAccount staffAccount(Object? json) {
+    final map = _map(json);
+    return StaffAccount(
+      id: _int(map, 'id'),
+      userName: _string(map, 'userName'),
+      role: _enum(map, 'role', StaffRole.values, firstNumber: 1),
+      isActive: map['isActive'] == true,
+      mustChangePassword: map['mustChangePassword'] == true,
+      firstName: _optionalString(map, 'firstName'),
+      lastName: _optionalString(map, 'lastName'),
+      email: _optionalString(map, 'email'),
+    );
+  }
+
+  /// Reads a list of staff accounts.
+  static List<StaffAccount> staffAccounts(Object? json) {
+    if (json is! List<Object?>) {
+      throw const FormatException('A list of staff accounts was expected.');
+    }
+    return json.map(staffAccount).toList(growable: false);
+  }
+
+  /// The number the API uses for [role]; the API counts the roles from 1.
+  static int roleNumber(StaffRole role) => role.index + 1;
+
+  /// Reads nothing: the answer of a change that has no value.
+  static void none(Object? json) {}
 
   /// Reads one room.
   static Room room(Object? json) {
@@ -104,6 +138,9 @@ abstract final class ApiJson {
     }
     throw FormatException('"$key" should be a whole number.');
   }
+
+  static String? _optionalString(Map<String, Object?> map, String key) =>
+      map[key] == null ? null : _string(map, key);
 
   static DateTime? _optionalDate(Map<String, Object?> map, String key) =>
       map[key] == null ? null : DateTime.parse(_string(map, key));

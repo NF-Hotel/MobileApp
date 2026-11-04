@@ -156,6 +156,8 @@ void main() {
           rooms: rooms,
           serviceNotes: FakeRoomServiceNoteRepository(),
           session: session,
+          auth: FakeAuthRepository(Success(validSession())),
+          staff: FakeStaffRepository(),
         ),
       ),
     );

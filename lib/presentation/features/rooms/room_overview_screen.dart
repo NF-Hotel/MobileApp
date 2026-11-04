@@ -3,8 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
+import 'package:mobil_application/domain/repositories/auth_repository.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
 import 'package:mobil_application/domain/repositories/room_service_note_repository.dart';
+import 'package:mobil_application/domain/repositories/staff_repository.dart';
+import 'package:mobil_application/presentation/features/account/change_password_screen.dart';
+import 'package:mobil_application/presentation/features/account/change_password_view_model.dart';
+import 'package:mobil_application/presentation/features/administration/administration_screen.dart';
+import 'package:mobil_application/presentation/features/administration/administration_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_overview_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_service_notes_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_tile.dart';
@@ -21,6 +27,8 @@ class RoomOverviewScreen extends StatefulWidget {
     required this.rooms,
     required this.serviceNotes,
     required this.session,
+    required this.auth,
+    required this.staff,
     super.key,
   });
 
@@ -35,6 +43,12 @@ class RoomOverviewScreen extends StatefulWidget {
 
   /// Who is signed in; the screen can sign them out.
   final SessionController session;
+
+  /// Changes the own password.
+  final AuthRepository auth;
+
+  /// Manages the staff accounts, for a Manager.
+  final StaffRepository staff;
 
   @override
   State<RoomOverviewScreen> createState() => _RoomOverviewScreenState();
@@ -69,25 +83,73 @@ class _RoomOverviewScreenState extends State<RoomOverviewScreen> {
     }
   }
 
+  Future<void> _openAdministration() async {
+    final session = widget.session.session;
+    if (session == null) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AdministrationScreen(
+          viewModel: AdministrationViewModel(
+            staff: widget.staff,
+            ownUserName: session.userName,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openChangePassword() => Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => ChangePasswordScreen(
+        viewModel: ChangePasswordViewModel(
+          auth: widget.auth,
+          session: widget.session,
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final session = widget.session.session;
     return Scaffold(
       appBar: AppBar(
-        title: const Text(Strings.roomsTitle),
-        actions: [
-          if (session != null)
-            Center(
-              child: Text(
-                '${session.userName} (${Strings.role(session.role)})',
+        leading: session != null && session.role.canManageStaff
+            ? IconButton(
+                key: const ValueKey('administration'),
+                tooltip: Strings.administration,
+                icon: const Icon(Icons.admin_panel_settings),
+                onPressed: () => unawaited(_openAdministration()),
+              )
+            : null,
+        centerTitle: true,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(Strings.roomsTitle),
+            if (session != null)
+              Text(
+                '${session.displayName} (${Strings.role(session.role)})',
                 key: const ValueKey('signedInAs'),
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-            ),
+          ],
+        ),
+        actions: [
           IconButton(
             key: const ValueKey('refresh'),
             tooltip: Strings.refresh,
             icon: const Icon(Icons.refresh),
             onPressed: () => unawaited(widget.viewModel.load()),
+          ),
+          IconButton(
+            key: const ValueKey('changePassword'),
+            tooltip: Strings.changePassword,
+            icon: const Icon(Icons.lock_reset),
+            onPressed: () => unawaited(_openChangePassword()),
           ),
           IconButton(
             key: const ValueKey('signOut'),
@@ -149,10 +211,13 @@ class _RoomOverviewBody extends StatelessWidget {
         return RefreshIndicator(
           onRefresh: viewModel.load,
           child: GridView.builder(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(16),
+            // Two columns on a phone, more on a wider screen.
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 200,
-              childAspectRatio: 1,
+              childAspectRatio: 0.8,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
             ),
             itemCount: viewModel.rooms.length,
             itemBuilder: (context, index) {

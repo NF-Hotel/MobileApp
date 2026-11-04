@@ -1,23 +1,33 @@
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/entities/room_service_note.dart';
+import 'package:mobil_application/domain/entities/staff_account.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/repositories/auth_repository.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
 import 'package:mobil_application/domain/repositories/room_service_note_repository.dart';
 import 'package:mobil_application/domain/repositories/session_store.dart';
+import 'package:mobil_application/domain/repositories/staff_repository.dart';
 import 'package:mobil_application/domain/result.dart';
 
 /// A fixed point in time for the tests.
 final DateTime testNow = DateTime.utc(2026, 10, 20, 8);
 
 /// A session that is valid at [testNow].
-StaffSession validSession({StaffRole role = StaffRole.housekeeping}) =>
-    StaffSession(
-      token: 'token-1',
-      expiresAt: testNow.add(const Duration(hours: 8)),
-      userName: 'hilda',
-      role: role,
-    );
+StaffSession validSession({
+  StaffRole role = StaffRole.housekeeping,
+  bool mustChangePassword = false,
+  String? firstName,
+  String? lastName,
+  String token = 'token-1',
+}) => StaffSession(
+  token: token,
+  expiresAt: testNow.add(const Duration(hours: 8)),
+  userName: 'hilda',
+  role: role,
+  mustChangePassword: mustChangePassword,
+  firstName: firstName,
+  lastName: lastName,
+);
 
 /// A room with the given state; the actions default to none.
 Room room({
@@ -56,21 +66,160 @@ class FakeSessionStore implements SessionStore {
   Future<void> clear() async => saved = null;
 }
 
-/// Answers the sign-in with a fixed result and remembers what it was asked.
+/// Answers the sign-in and the changes of the own account with fixed results
+/// and remembers what it was asked.
 class FakeAuthRepository implements AuthRepository {
   /// Creates the fake.
-  FakeAuthRepository(this.result);
+  FakeAuthRepository(this.result, {this.changeResult, this.nameResult});
 
   /// What the sign-in returns.
   Result<StaffSession> result;
 
+  /// What the change of the password returns; the sign-in result when null.
+  Result<StaffSession>? changeResult;
+
+  /// What the own name returns; the sign-in result when null.
+  Result<StaffSession>? nameResult;
+
   /// The user names it was called with.
   final List<String> userNames = <String>[];
+
+  /// The changes of the password, as `current>new`.
+  final List<String> passwordChanges = <String>[];
+
+  /// The names it was given, as `first last`.
+  final List<String> names = <String>[];
 
   @override
   Future<Result<StaffSession>> signIn(String userName, String password) async {
     userNames.add(userName);
     return result;
+  }
+
+  @override
+  Future<Result<StaffSession>> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    passwordChanges.add('$currentPassword>$newPassword');
+    return changeResult ?? result;
+  }
+
+  @override
+  Future<Result<StaffSession>> setOwnName(
+    String firstName,
+    String lastName,
+  ) async {
+    names.add('$firstName $lastName');
+    return nameResult ?? result;
+  }
+}
+
+/// A staff account for the administration.
+StaffAccount staffAccount({
+  int id = 1,
+  String userName = 'rita',
+  StaffRole role = StaffRole.receptionist,
+  bool isActive = true,
+  bool mustChangePassword = false,
+  String? firstName,
+  String? lastName,
+  String? email,
+}) => StaffAccount(
+  id: id,
+  userName: userName,
+  role: role,
+  isActive: isActive,
+  mustChangePassword: mustChangePassword,
+  firstName: firstName,
+  lastName: lastName,
+  email: email,
+);
+
+/// Holds staff accounts in memory and records the changes asked of it.
+class FakeStaffRepository implements StaffRepository {
+  /// Creates the fake with [accounts].
+  FakeStaffRepository([List<StaffAccount>? accounts])
+    : accounts = accounts ?? <StaffAccount>[];
+
+  /// The accounts it returns.
+  List<StaffAccount> accounts;
+
+  /// Set to make every change fail; the list is still read.
+  ApiFailure? changeFailure;
+
+  /// Set to make reading the list fail.
+  ApiFailure? readFailure;
+
+  /// The changes, as `action:id` or `action:id:detail`.
+  final List<String> calls = <String>[];
+
+  /// The accounts that were created.
+  final List<NewStaffAccount> created = <NewStaffAccount>[];
+
+  @override
+  Future<Result<List<StaffAccount>>> readAll() async {
+    final failed = readFailure;
+    return failed == null ? Success(accounts) : Failed(failed);
+  }
+
+  @override
+  Future<Result<void>> create(NewStaffAccount account) {
+    created.add(account);
+    return _change('create:${account.userName}', () {
+      accounts = [
+        ...accounts,
+        staffAccount(
+          id: accounts.length + 100,
+          userName: account.userName,
+          role: account.role,
+          mustChangePassword: true,
+          firstName: account.firstName,
+          lastName: account.lastName,
+          email: account.email,
+        ),
+      ];
+    });
+  }
+
+  @override
+  Future<Result<void>> rename(int id, String firstName, String lastName) =>
+      _change('rename:$id:$firstName $lastName', () {});
+
+  @override
+  Future<Result<void>> changeEmail(int id, String? email) =>
+      _change('email:$id:$email', () {});
+
+  @override
+  Future<Result<void>> changeRole(int id, StaffRole role) =>
+      _change('role:$id:${role.name}', () {});
+
+  @override
+  Future<Result<void>> resetPassword(int id, String temporaryPassword) =>
+      _change('reset:$id', () {});
+
+  @override
+  Future<Result<void>> disable(int id) => _change('disable:$id', () {});
+
+  @override
+  Future<Result<void>> enable(int id) => _change('enable:$id', () {});
+
+  @override
+  Future<Result<void>> delete(int id) => _change('delete:$id', () {
+    accounts = [
+      for (final account in accounts)
+        if (account.id != id) account,
+    ];
+  });
+
+  Future<Result<void>> _change(String call, void Function() apply) async {
+    calls.add(call);
+    final failed = changeFailure;
+    if (failed != null) {
+      return Failed(failed);
+    }
+    apply();
+    return const Success(null);
   }
 }
 

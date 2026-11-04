@@ -51,6 +51,10 @@ class ApiClient {
     Map<String, String>? query,
   }) => _send('POST', path, parse, body: body, query: query);
 
+  /// A DELETE; [parse] turns the `value` of the envelope into the result.
+  Future<Result<T>> delete<T>(String path, T Function(Object? value) parse) =>
+      _send('DELETE', path, parse);
+
   Future<Result<T>> _send<T>(
     String method,
     String path,
@@ -69,6 +73,8 @@ class ApiClient {
       final http.Response response;
       if (method == 'GET') {
         response = await _client.get(uri, headers: headers).timeout(timeout);
+      } else if (method == 'DELETE') {
+        response = await _client.delete(uri, headers: headers).timeout(timeout);
       } else {
         headers['Content-Type'] = 'application/json';
         response = await _client

@@ -39,6 +39,10 @@ dependencies:
   http: ^1.2.2
   flutter_secure_storage: ^9.2.4
 
+  # The fonts of the NF Hotel look, Playfair Display and Inter, bundled under
+  # assets/google_fonts; 8.x because 9.x needs Dart 3.13 and CI is on 3.12.
+  google_fonts: ^8.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -60,12 +64,16 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-  # No assets yet: the two folders that were listed here do not exist, which
-  # stopped every desktop and release build. The old images are in lib/Assets.
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # The housekeeping icons, and the fonts so that the app never fetches them at
+  # run time.
+  assets:
+    - lib/Assets/
+    - assets/google_fonts/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

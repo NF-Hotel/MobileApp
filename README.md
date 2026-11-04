@@ -15,9 +15,11 @@ ADR-0015).
   has expired (8 hours), returns the app to the sign-in.
 - The role decides what the API allows: Housekeeping changes cleaning and
   service, and gets 403 on anything else.
-- The service notes of a room use `/api/room-service-notes`. That route has to be
-  on the staff-token list (`StaffTokenRoutes`) and the nginx filter
-  (`ops/deploy/nginx/snippets/mobile-api.conf`) of the website repository.
+- The service notes of a room use `/api/room-service-notes`, and the staff
+  accounts `/api/staff`. Both routes have to be on the staff-token list
+  (`StaffTokenRoutes`) and the nginx filter
+  (`ops/deploy/nginx/snippets/mobile-api.conf`) of the website repository
+  (ADR-0015, MIL-059).
 
 ## Service notes
 
@@ -26,6 +28,26 @@ the room needs service. Everybody can tick a note as done and untick it for five
 minutes. After that it is in the history of the room, where only a Manager can
 untick it. The API decides all of this; the app reads the notes again every 30
 seconds and shows the answer.
+
+## The own account and the administration (MIL-059)
+
+- A member whose password a Manager set must choose a new one before anything
+  else; the API refuses every other call until then. An account without a name
+  is asked for it after the sign-in. Every member can change the own password
+  from the rooms.
+- A Manager opens the administration from the rooms. It creates accounts (first
+  and last name, user name, optional e-mail, temporary password, role) and, per
+  account, edits the name and the e-mail, sets a temporary password, changes
+  the role, disables or enables it, and deletes it. The API keeps the rules: the
+  own account and the last active Manager can be neither disabled, deleted nor
+  given another role, and every change is in the audit trail.
+
+## Look
+
+The screens follow the earlier prototype of the app: a navy and amber theme,
+Playfair Display for headings and Inter for text, and the housekeeping
+pictures in `lib/Assets`. The fonts are bundled in `assets/google_fonts`
+(SIL Open Font License) and never fetched at run time.
 
 ## Flutter version
 

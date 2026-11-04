@@ -6,12 +6,14 @@ import 'package:http/testing.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/entities/room_service_note.dart';
+import 'package:mobil_application/domain/entities/staff_account.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/result.dart';
 import 'package:mobil_application/infrastructure/network/api_client.dart';
 import 'package:mobil_application/infrastructure/network/http_auth_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_room_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_room_service_note_repository.dart';
+import 'package:mobil_application/infrastructure/network/http_staff_repository.dart';
 
 /// The room as the API sends it: enums as numbers, camelCase names.
 Map<String, Object?> roomJson({
@@ -130,6 +132,172 @@ void main() {
 
         expect((result as Success<StaffSession>).value.role, entry.value);
       }
+    });
+  });
+
+  group('the own account (MIL-059)', () {
+    test('a session carries the must-change flag and the names', () async {
+      answer = (_) => _ok({
+        'token': 't',
+        'expiresAt': '2026-10-20T16:00:00Z',
+        'userName': 'hilda',
+        'role': 3,
+        'mustChangePassword': true,
+        'firstName': 'Hilda',
+        'lastName': 'Berg',
+      });
+
+      final result = await HttpAuthRepository(client).signIn('hilda', 'p');
+
+      final session = (result as Success<StaffSession>).value;
+      expect(session.mustChangePassword, isTrue);
+      expect(session.displayName, 'Hilda Berg');
+    });
+
+    test('a session without the names has none', () async {
+      answer = (_) => _ok({
+        'token': 't',
+        'expiresAt': '2026-10-20T16:00:00Z',
+        'userName': 'hilda',
+        'role': 3,
+        'firstName': null,
+      });
+
+      final result = await HttpAuthRepository(client).signIn('hilda', 'p');
+
+      final session = (result as Success<StaffSession>).value;
+      expect(session.hasName, isFalse);
+      expect(session.mustChangePassword, isFalse);
+      expect(session.displayName, 'hilda');
+    });
+
+    test('the password and the name are posted below /api/staff/me', () async {
+      answer = (_) => _ok({
+        'token': 'new',
+        'expiresAt': '2026-10-20T16:00:00Z',
+        'userName': 'hilda',
+        'role': 3,
+      });
+      final auth = HttpAuthRepository(client);
+
+      await auth.changePassword('old secret', 'new secret');
+      await auth.setOwnName('Hilda', 'Berg');
+
+      expect(sent.map((request) => request.url.path), [
+        '/mobile-api/api/staff/me/password',
+        '/mobile-api/api/staff/me/name',
+      ]);
+      expect(jsonDecode(sent[0].body), {
+        'currentPassword': 'old secret',
+        'newPassword': 'new secret',
+      });
+      expect(jsonDecode(sent[1].body), {
+        'firstName': 'Hilda',
+        'lastName': 'Berg',
+      });
+    });
+  });
+
+  group('HttpStaffRepository', () {
+    test('readAll reads the accounts with their names and roles', () async {
+      answer = (_) => _ok([
+        {
+          'id': 4,
+          'userName': 'rita',
+          'role': 2,
+          'isActive': true,
+          'mustChangePassword': false,
+          'firstName': 'Rita',
+          'lastName': 'Hansen',
+          'email': 'rita@hotel.dk',
+        },
+        {
+          'id': 7,
+          'userName': 'otto',
+          'role': 3,
+          'isActive': false,
+          'mustChangePassword': true,
+        },
+      ]);
+
+      final result = await HttpStaffRepository(client).readAll();
+
+      final accounts = (result as Success<List<StaffAccount>>).value;
+      expect(accounts.first.role, StaffRole.manager);
+      expect(accounts.first.displayName, 'Rita Hansen');
+      expect(accounts.first.email, 'rita@hotel.dk');
+      expect(accounts.last.isActive, isFalse);
+      expect(accounts.last.displayName, 'otto');
+      expect(sent.single.url.path, '/mobile-api/api/staff');
+      expect(sent.single.headers['X-Staff-Token'], 'staff-token');
+    });
+
+    test('create posts the fields with the role as its number', () async {
+      answer = (_) => _ok(null);
+
+      final result = await HttpStaffRepository(client).create(
+        const NewStaffAccount(
+          firstName: 'Lena',
+          lastName: 'Berg',
+          userName: 'lena',
+          temporaryPassword: 'temporary passphrase 7',
+          role: StaffRole.housekeeping,
+        ),
+      );
+
+      expect(result, isA<Success<void>>());
+      expect(sent.single.method, 'POST');
+      expect(jsonDecode(sent.single.body), {
+        'userName': 'lena',
+        'password': 'temporary passphrase 7',
+        'role': 3,
+        'firstName': 'Lena',
+        'lastName': 'Berg',
+        'email': null,
+      });
+    });
+
+    test('every change goes to its route with its verb', () async {
+      answer = (_) => _ok(null);
+      final repository = HttpStaffRepository(client);
+
+      await repository.rename(4, 'Rita', 'Holm');
+      await repository.changeEmail(4, null);
+      await repository.changeRole(4, StaffRole.receptionist);
+      await repository.resetPassword(4, 'temporary passphrase 7');
+      await repository.disable(4);
+      await repository.enable(4);
+      await repository.delete(4);
+
+      expect(sent.map((request) => '${request.method} ${request.url.path}'), [
+        'POST /mobile-api/api/staff/4/name',
+        'POST /mobile-api/api/staff/4/email',
+        'POST /mobile-api/api/staff/4/role',
+        'POST /mobile-api/api/staff/4/password',
+        'POST /mobile-api/api/staff/4/disable',
+        'POST /mobile-api/api/staff/4/enable',
+        'DELETE /mobile-api/api/staff/4',
+      ]);
+      expect(jsonDecode(sent[1].body), {'email': null});
+      expect(jsonDecode(sent[2].body), {'role': 1});
+      expect(jsonDecode(sent[3].body), {
+        'newPassword': 'temporary passphrase 7',
+      });
+    });
+
+    test('a conflict keeps its code', () async {
+      answer = (_) => http.Response(
+        jsonEncode({
+          'errors': ['staff.cannot_delete_self'],
+        }),
+        409,
+      );
+
+      final result = await HttpStaffRepository(client).delete(1);
+
+      final failure = (result as Failed<void>).failure;
+      expect(failure.kind, FailureKind.rejected);
+      expect(failure.codes, ['staff.cannot_delete_self']);
     });
   });
 

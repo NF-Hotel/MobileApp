@@ -10,6 +10,8 @@ abstract final class Strings {
   static const String userName = 'User name';
   static const String password = 'Password';
   static const String signInButton = 'Sign in';
+  static const String showPassword = 'Show password';
+  static const String hidePassword = 'Hide password';
   static const String signOut = 'Sign out';
   static const String userNameRequired = 'Enter your user name';
   static const String passwordRequired = 'Enter your password';
@@ -30,6 +32,172 @@ abstract final class Strings {
   static const String serviceHistory = 'History';
   static const String noServiceHistory =
       'No finished service on this room yet.';
+
+  // The own account (MIL-059).
+  static const String changePassword = 'Change password';
+  static const String chooseNewPassword = 'Choose a new password';
+  static const String chooseNewPasswordHint =
+      'Your password was set by a Manager. Choose your own before you '
+      'continue.';
+  static const String changePasswordHint =
+      'All your other sessions end when the password changes.';
+  static const String currentPassword = 'Current password';
+  static const String newPassword = 'New password';
+  static const String confirmPassword = 'New password again';
+  static const String currentPasswordRequired = 'Enter your current password';
+  static const String passwordTooShort =
+      'The password must be at least 12 characters';
+  static const String passwordsDoNotMatch =
+      'The two passwords are not the same';
+  static const String passwordChanged = 'Your password was changed.';
+  static const String saveButton = 'Save';
+  static const String yourName = 'Your name';
+  static const String welcome = 'Welcome';
+  static const String addYourName = 'Add your name before you continue.';
+  static const String firstName = 'First name';
+  static const String lastName = 'Last name';
+  static const String firstNameRequired = 'Enter a first name';
+  static const String lastNameRequired = 'Enter a last name';
+  static const String continueButton = 'Continue';
+
+  // The administration (MIL-059).
+  static const String administration = 'Administration';
+  static const String createAccount = 'Create account';
+  static const String createAccountHint =
+      'Give a member of staff access to the app and the back office.';
+  static const String email = 'E-mail (optional)';
+  static const String emailInvalid = 'Enter a valid e-mail address';
+  static const String temporaryPassword = 'Temporary password';
+  static const String temporaryPasswordHint =
+      'At least 12 characters. The person must change it at the first sign-in.';
+  static const String roleLabel = 'Role';
+  static const String accountUserNameRequired = 'Enter a user name';
+  static const String users = 'Users';
+  static const String noUsers = 'There are no accounts.';
+  static const String editName = 'Edit name';
+  static const String editEmail = 'Edit e-mail';
+  static const String emailClearHint = 'Leave it empty to remove the address.';
+  static const String resetPassword = 'Reset password';
+  static const String changeRole = 'Change role';
+  static const String disableAccount = 'Disable account';
+  static const String enableAccount = 'Enable account';
+  static const String deleteAccount = 'Delete account';
+  static const String actions = 'Actions';
+  static const String stateActive = 'Active';
+  static const String stateDisabled = 'Disabled';
+  static const String stateMustChange = 'Must change password';
+  static const String you = 'you';
+  static const String delete = 'Delete';
+  static const String disable = 'Disable';
+
+  /// The question before an account is deleted.
+  static String deleteQuestion(String userName) =>
+      'Delete $userName? The account is removed for good and its sessions '
+      'end. The audit trail keeps the user name.';
+
+  /// The question before an account is disabled.
+  static String disableQuestion(String userName) =>
+      '$userName can no longer sign in, and every open session of the account '
+      'ends now.';
+
+  /// The title of the reset of the password of an account.
+  static String resetPasswordFor(String userName) =>
+      'Temporary password for $userName';
+
+  /// The title of the choice of a role for an account.
+  static String changeRoleFor(String userName) => 'Role of $userName';
+
+  /// The receipt of a new account.
+  static String accountCreated(String userName) =>
+      'Created $userName. The person must choose a new password at the first '
+      'sign-in.';
+
+  /// The receipt of a change of an account.
+  static String accountSaved(String userName) => 'Saved $userName.';
+
+  /// The receipt of a new role.
+  static String roleChanged(String userName) =>
+      'Saved $userName. The new role ends the open sessions of the account.';
+
+  /// The receipt of a temporary password.
+  static String passwordReset(String userName) =>
+      'Set a temporary password for $userName. The person must change it at '
+      'the next sign-in.';
+
+  /// The receipt of a disabled account.
+  static String accountDisabled(String userName) =>
+      'Disabled $userName. Their sessions have ended.';
+
+  /// The receipt of an enabled account.
+  static String accountEnabled(String userName) =>
+      'Enabled $userName. The person must choose a new password at the next '
+      'sign-in.';
+
+  /// The receipt of a deleted account.
+  static String accountDeleted(String userName) => 'Deleted $userName.';
+
+  static const Map<String, String> _staffTexts = <String, String>{
+    'staff.current_password_invalid': 'The current password is wrong.',
+    'staff.password_invalid':
+        'The password must be between 12 and 256 characters.',
+    'staff.password_same_as_user_name':
+        'The password must not be the same as the user name.',
+    'staff.password_same_as_current':
+        'Choose a password that is different from the current one.',
+    'staff.password_too_common':
+        'That password is too common. Choose another one.',
+    'staff.too_many_attempts':
+        'Too many wrong passwords. Wait fifteen minutes and try again.',
+    'staff.too_many_requests':
+        'Too many changes in a short time. Wait a minute and try again.',
+    'staff.not_found': 'The account was not found.',
+    'staff.user_name_taken': 'That user name is already in use.',
+    'staff.user_name_required': 'Enter a user name.',
+    'staff.user_name_too_long': 'The user name is too long.',
+    'staff.first_name_required': 'Enter a first name.',
+    'staff.first_name_too_long': 'The first name is too long.',
+    'staff.last_name_required': 'Enter a last name.',
+    'staff.last_name_too_long': 'The last name is too long.',
+    'staff.email_invalid': 'Enter a valid e-mail address.',
+    'staff.email_too_long': 'The e-mail address is too long.',
+    'staff.email_taken': 'Another account already has that e-mail address.',
+    'staff.role_invalid': 'Select a role.',
+    'staff.last_manager':
+        'At least one active Manager must remain, so this account cannot be '
+        'disabled, deleted or given another role.',
+    'staff.cannot_disable_self': 'You cannot disable your own account.',
+    'staff.cannot_reset_self': 'Use Change password to set your own password.',
+    'staff.cannot_change_own_role': 'You cannot change your own role.',
+    'staff.cannot_delete_self': 'You cannot delete your own account.',
+    'staff.name_already_set':
+        'Your account already has a name. Ask a Manager to change it.',
+    'staff.password_change_required':
+        'Choose a new password before you continue.',
+  };
+
+  /// The text of a failure on a staff account: the texts of its codes, or the
+  /// text of its kind.
+  static String staffFailure(ApiFailure failure) {
+    final texts = <String>{
+      for (final code in failure.codes)
+        if (_staffTexts[code] case final String text) text,
+    };
+    if (texts.isNotEmpty) {
+      return texts.join('\n');
+    }
+    if (failure.kind == FailureKind.notFound) {
+      return 'Account management is not available on this server yet.';
+    }
+    return Strings.failure(failure);
+  }
+
+  /// The state of an account in the administration.
+  static String accountState(bool isActive, bool mustChangePassword) =>
+      !isActive
+      ? stateDisabled
+      : mustChangePassword
+      ? stateMustChange
+      : stateActive;
 
   static const List<String> _months = [
     'Jan',

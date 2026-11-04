@@ -67,14 +67,27 @@ class _RoomServiceHistoryScreenState extends State<RoomServiceHistoryScreen> {
                 ),
               if (viewModel.hasReadHistory && viewModel.history.isEmpty)
                 const Text(Strings.noServiceHistory),
-              for (final note in viewModel.history)
-                RoomServiceNoteTile(
-                  key: ValueKey('historyNote-${note.id}'),
-                  note: note,
-                  showUndoDeadline: false,
-                  onToggle: viewModel.canReopen && !isWorking
-                      ? () => unawaited(viewModel.reopen(note))
-                      : null,
+              if (viewModel.history.isNotEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        for (final (index, note)
+                            in viewModel.history.indexed) ...[
+                          if (index > 0) const Divider(height: 1),
+                          RoomServiceNoteTile(
+                            key: ValueKey('historyNote-${note.id}'),
+                            note: note,
+                            showUndoDeadline: false,
+                            onToggle: viewModel.canReopen && !isWorking
+                                ? () => unawaited(viewModel.reopen(note))
+                                : null,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
             ],
           );

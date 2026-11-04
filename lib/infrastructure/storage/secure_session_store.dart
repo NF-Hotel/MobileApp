@@ -32,11 +32,15 @@ class SecureSessionStore implements SessionStore {
         final expires = DateTime.tryParse(expiresAt);
         final staffRole = StaffRole.values.asNameMap()[role];
         if (expires != null && staffRole != null) {
+          // The fields of MIL-059 are missing in a session saved before them.
           return StaffSession(
             token: token,
             expiresAt: expires,
             userName: userName,
             role: staffRole,
+            mustChangePassword: json['mustChangePassword'] == true,
+            firstName: _optional(json['firstName']),
+            lastName: _optional(json['lastName']),
           );
         }
       }
@@ -55,9 +59,14 @@ class SecureSessionStore implements SessionStore {
       'expiresAt': session.expiresAt.toUtc().toIso8601String(),
       'userName': session.userName,
       'role': session.role.name,
+      'mustChangePassword': session.mustChangePassword,
+      'firstName': session.firstName,
+      'lastName': session.lastName,
     }),
   );
 
   @override
   Future<void> clear() => _storage.delete(key: _key);
+
+  static String? _optional(Object? value) => value is String ? value : null;
 }

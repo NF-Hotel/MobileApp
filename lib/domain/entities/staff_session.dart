@@ -16,6 +16,10 @@ enum StaffRole {
   /// Whether the role may take a service note back from the history. Only what
   /// the app offers: the API refuses everybody else as well.
   bool get canReopenServiceNotes => this == StaffRole.manager;
+
+  /// Whether the role may manage the staff accounts (MIL-059). Only what the
+  /// app offers: the API refuses everybody else as well.
+  bool get canManageStaff => this == StaffRole.manager;
 }
 
 /// A signed-in member of staff and the token the API gave them.
@@ -26,6 +30,9 @@ class StaffSession {
     required this.expiresAt,
     required this.userName,
     required this.role,
+    this.mustChangePassword = false,
+    this.firstName,
+    this.lastName,
   });
 
   /// The staff token; sent in `X-Staff-Token`. A secret: never log it.
@@ -39,6 +46,23 @@ class StaffSession {
 
   /// The role.
   final StaffRole role;
+
+  /// True when the member must choose a new password before anything else; the
+  /// API refuses every other call until then (ADR-0017).
+  final bool mustChangePassword;
+
+  /// The first name, or null while the account has no name (MIL-059).
+  final String? firstName;
+
+  /// The last name, or null while the account has no name (MIL-059).
+  final String? lastName;
+
+  /// True when the account has a first and a last name.
+  bool get hasName => firstName != null && lastName != null;
+
+  /// The name to show: the first and the last name, or the user name while the
+  /// account has none.
+  String get displayName => hasName ? '$firstName $lastName' : userName;
 
   /// Tells whether the token is no longer valid at [now].
   bool isExpiredAt(DateTime now) => !now.isBefore(expiresAt);

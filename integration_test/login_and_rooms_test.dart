@@ -23,6 +23,7 @@ import 'package:mobil_application/infrastructure/network/http_auth_repository.da
 import 'package:mobil_application/infrastructure/network/http_client_factory.dart';
 import 'package:mobil_application/infrastructure/network/http_room_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_room_service_note_repository.dart';
+import 'package:mobil_application/infrastructure/network/http_staff_repository.dart';
 import 'package:mobil_application/presentation/session/session_controller.dart';
 
 class _MemoryStore implements SessionStore {
@@ -54,6 +55,7 @@ Future<SessionController> _start(WidgetTester tester) async {
       auth: HttpAuthRepository(client),
       rooms: HttpRoomRepository(client),
       serviceNotes: HttpRoomServiceNoteRepository(client),
+      staff: HttpStaffRepository(client),
     ),
   );
   await session.restore();

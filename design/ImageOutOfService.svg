@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="488" height="480" viewBox="0 0 122 120">
+<!-- Source of lib/Assets/ImageOutOfService.png (122x120). Render with: qlmanage -t -s 976 -o . ImageOutOfService.svg, then crop to 976x960, scale to 122x120 and round the corners (radius 15) to transparent. -->
+  <defs>
+    <clipPath id="board"><rect x="17" y="40" width="88" height="22" rx="3"/></clipPath>
+    <clipPath id="board2"><rect x="25" y="70" width="72" height="14" rx="3"/></clipPath>
+  </defs>
+  <rect x="0" y="0" width="122" height="120" rx="15" ry="15" fill="#7E8DA4"/>
+  <!-- legs -->
+  <g stroke="#080808" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M30 56 L18 104 L26 104 L37 56 Z" fill="#E7E9EE"/>
+    <path d="M92 56 L104 104 L96 104 L85 56 Z" fill="#E7E9EE"/>
+    <path d="M38 56 L44 98 L50 98 L45 56 Z" fill="#B9BFCA"/>
+    <path d="M84 56 L78 98 L72 98 L77 56 Z" fill="#B9BFCA"/>
+    <!-- feet -->
+    <rect x="13" y="102" width="18" height="6" rx="2" fill="#3A3F48"/>
+    <rect x="91" y="102" width="18" height="6" rx="2" fill="#3A3F48"/>
+  </g>
+  <!-- top board with stripes -->
+  <g clip-path="url(#board)">
+    <rect x="17" y="40" width="88" height="22" fill="#FFFFFF"/>
+    <g fill="#E5363B">
+      <path d="M10 62 L24 40 L36 40 L22 62 Z"/>
+      <path d="M34 62 L48 40 L60 40 L46 62 Z"/>
+      <path d="M58 62 L72 40 L84 40 L70 62 Z"/>
+      <path d="M82 62 L96 40 L108 40 L94 62 Z"/>
+    </g>
+    <rect x="17" y="56" width="88" height="6" fill="#000" opacity="0.12"/>
+  </g>
+  <rect x="17" y="40" width="88" height="22" rx="3" fill="none" stroke="#080808" stroke-width="2.5"/>
+  <!-- lower board -->
+  <g clip-path="url(#board2)">
+    <rect x="25" y="70" width="72" height="14" fill="#FFFFFF"/>
+    <g fill="#E5363B">
+      <path d="M22 84 L31 70 L41 70 L32 84 Z"/>
+      <path d="M44 84 L53 70 L63 70 L54 84 Z"/>
+      <path d="M66 84 L75 70 L85 70 L76 84 Z"/>
+      <path d="M88 84 L97 70 L107 70 L98 84 Z"/>
+    </g>
+    <rect x="25" y="80" width="72" height="4" fill="#000" opacity="0.12"/>
+  </g>
+  <rect x="25" y="70" width="72" height="14" rx="3" fill="none" stroke="#080808" stroke-width="2.5"/>
+  <!-- warning lamps -->
+  <g stroke="#080808" stroke-width="2.5">
+    <rect x="28" y="31" width="4" height="10" fill="#3A3F48"/>
+    <rect x="90" y="31" width="4" height="10" fill="#3A3F48"/>
+    <circle cx="30" cy="25" r="8" fill="#F7B733"/>
+    <circle cx="92" cy="25" r="8" fill="#F7B733"/>
+  </g>
+  <circle cx="27.5" cy="22.5" r="2.5" fill="#FFFFFF" opacity="0.8"/>
+  <circle cx="89.5" cy="22.5" r="2.5" fill="#FFFFFF" opacity="0.8"/>
+</svg>

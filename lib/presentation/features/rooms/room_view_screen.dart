@@ -7,6 +7,8 @@ import 'package:mobil_application/presentation/features/rooms/room_service_histo
 import 'package:mobil_application/presentation/features/rooms/room_service_note_tile.dart';
 import 'package:mobil_application/presentation/features/rooms/room_service_notes_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_view_model.dart';
+import 'package:mobil_application/presentation/shared/app_theme.dart';
+import 'package:mobil_application/presentation/shared/housekeeping_icon.dart';
 import 'package:mobil_application/presentation/shared/strings.dart';
 
 /// One room with the cleaning and service actions that its state allows, and its
@@ -133,24 +135,11 @@ class _RoomViewScreenState extends State<RoomViewScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               if (viewModel.isBusy) const LinearProgressIndicator(),
-              ListTile(
-                title: Text(Strings.housekeeping(room.housekeepingStatus)),
-                subtitle: const Text('Cleaning and service'),
-              ),
-              ListTile(
-                title: Text(Strings.roomStatus(room.status)),
-                subtitle: const Text('Status'),
-              ),
-              ListTile(
-                title: Text(
-                  '${Strings.size(room.size)}, sleeps ${room.capacity}, '
-                  'floor ${room.floor}',
-                ),
-              ),
-              const Divider(),
+              _RoomHeader(room: room),
+              const SizedBox(height: 16),
               if (error != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
                     error,
                     key: const ValueKey('roomError'),
@@ -160,21 +149,29 @@ class _RoomViewScreenState extends State<RoomViewScreen> {
                   ),
                 ),
               if (actions.isEmpty)
-                const Text(Strings.nothingToDo)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(Strings.nothingToDo),
+                )
               else
                 for (final action in actions)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: FilledButton(
-                      key: ValueKey('action-${action.name}'),
-                      onPressed: viewModel.isBusy
-                          ? null
-                          : () => unawaited(_perform(action)),
-                      child: Text(Strings.action(action)),
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Card(
+                      child: ListTile(
+                        key: ValueKey('action-${action.name}'),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        enabled: !viewModel.isBusy,
+                        leading: HousekeepingIcon.forAction(action, size: 28),
+                        title: Text(Strings.action(action)),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => unawaited(_perform(action)),
+                      ),
                     ),
                   ),
-              const SizedBox(height: 8),
-              const Divider(),
               _ServiceNotes(
                 viewModel: widget.notes,
                 draft: _draft,
@@ -185,6 +182,54 @@ class _RoomViewScreenState extends State<RoomViewScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// The state of a room at the top of its screen: the picture of its
+/// housekeeping state, the state in words, whether it can be let, and its size.
+class _RoomHeader extends StatelessWidget {
+  const _RoomHeader({required this.room});
+
+  final Room room;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            HousekeepingIcon.forRoom(room, size: 56),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    Strings.housekeeping(room.housekeepingStatus),
+                    style: textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    Strings.roomStatus(room.status),
+                    style: room.status == RoomStatus.available
+                        ? textTheme.bodyMedium
+                        : textTheme.titleSmall?.copyWith(
+                            color: AppColors.error,
+                          ),
+                  ),
+                  Text(
+                    '${Strings.size(room.size)}, sleeps ${room.capacity}, '
+                    'floor ${room.floor}',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -210,76 +255,87 @@ class _ServiceNotes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final error = viewModel.errorMessage;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Text(
-                Strings.serviceNotes,
-                style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    Strings.serviceNotes,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                TextButton.icon(
+                  key: const ValueKey('serviceHistory'),
+                  onPressed: onOpenHistory,
+                  icon: const Icon(Icons.history),
+                  label: const Text(Strings.serviceHistory),
+                ),
+              ],
+            ),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  error,
+                  key: const ValueKey('notesError'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ),
-            ),
-            TextButton.icon(
-              key: const ValueKey('serviceHistory'),
-              onPressed: onOpenHistory,
-              icon: const Icon(Icons.history),
-              label: const Text(Strings.serviceHistory),
-            ),
+            if (viewModel.canWrite) ...[
+              const SizedBox(height: 8),
+              TextField(
+                key: const ValueKey('noteField'),
+                controller: draft,
+                // Read-only and not disabled during a call, which would drop
+                // the focus and close the keyboard of somebody who is still
+                // writing.
+                readOnly: viewModel.isBusy,
+                minLines: 1,
+                maxLines: 4,
+                maxLength: _maxTextLength,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  hintText: Strings.serviceNoteHint,
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: draft,
+                  builder: (context, value, _) => FilledButton(
+                    key: const ValueKey('reportNote'),
+                    onPressed: viewModel.isBusy || value.text.trim().isEmpty
+                        ? null
+                        : onReport,
+                    child: const Text(Strings.reportServiceNeeded),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (viewModel.notes.isEmpty && !viewModel.isBusy)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(Strings.noServiceNotes),
+              ),
+            for (final note in viewModel.notes) ...[
+              const Divider(height: 1),
+              RoomServiceNoteTile(
+                key: ValueKey('note-${note.id}'),
+                note: note,
+                onToggle: viewModel.isBusy
+                    ? null
+                    : () => unawaited(viewModel.toggleDone(note)),
+              ),
+            ],
           ],
         ),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              error,
-              key: const ValueKey('notesError'),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        if (viewModel.notes.isEmpty && !viewModel.isBusy)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(Strings.noServiceNotes),
-          ),
-        for (final note in viewModel.notes)
-          RoomServiceNoteTile(
-            key: ValueKey('note-${note.id}'),
-            note: note,
-            onToggle: viewModel.isBusy
-                ? null
-                : () => unawaited(viewModel.toggleDone(note)),
-          ),
-        if (viewModel.canWrite) ...[
-          const SizedBox(height: 8),
-          TextField(
-            key: const ValueKey('noteField'),
-            controller: draft,
-            // Read-only and not disabled during a call, which would drop the
-            // focus and close the keyboard of somebody who is still writing.
-            readOnly: viewModel.isBusy,
-            minLines: 1,
-            maxLines: 4,
-            maxLength: _maxTextLength,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              labelText: Strings.serviceNoteHint,
-            ),
-          ),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: draft,
-            builder: (context, value, _) => FilledButton.tonal(
-              key: const ValueKey('reportNote'),
-              onPressed: viewModel.isBusy || value.text.trim().isEmpty
-                  ? null
-                  : onReport,
-              child: const Text(Strings.reportServiceNeeded),
-            ),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }

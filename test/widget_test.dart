@@ -25,7 +25,9 @@ void main() {
         actions: const RoomActions(canStartCleaning: true),
       ),
     ]);
-    auth = FakeAuthRepository(Success(validSession()));
+    auth = FakeAuthRepository(
+      Success(validSession(firstName: 'Hilda', lastName: 'Berg')),
+    );
   });
 
   Future<SessionController> start(
@@ -39,6 +41,7 @@ void main() {
         auth: auth,
         rooms: rooms,
         serviceNotes: FakeRoomServiceNoteRepository(),
+        staff: FakeStaffRepository(),
       ),
     );
     await session.restore();
@@ -54,7 +57,10 @@ void main() {
   });
 
   testWidgets('a saved session goes straight to the rooms', (tester) async {
-    await start(tester, FakeSessionStore(validSession()));
+    await start(
+      tester,
+      FakeSessionStore(validSession(firstName: 'Hilda', lastName: 'Berg')),
+    );
 
     expect(find.text('Rooms'), findsOneWidget);
     expect(find.byKey(const ValueKey('room-5')), findsOneWidget);
@@ -69,13 +75,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('room-5')), findsOneWidget);
-    expect(find.text('305'), findsOneWidget);
+    expect(find.text('Room 305'), findsOneWidget);
   });
 
   testWidgets('a session that ends on a room screen returns to the sign-in', (
     tester,
   ) async {
-    final session = await start(tester, FakeSessionStore(validSession()));
+    final session = await start(
+      tester,
+      FakeSessionStore(validSession(firstName: 'Hilda', lastName: 'Berg')),
+    );
     await tester.tap(find.byKey(const ValueKey('room-5')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('action-startCleaning')), findsOneWidget);
@@ -88,7 +97,10 @@ void main() {
   });
 
   testWidgets('signing out and in again reads the rooms again', (tester) async {
-    await start(tester, FakeSessionStore(validSession()));
+    await start(
+      tester,
+      FakeSessionStore(validSession(firstName: 'Hilda', lastName: 'Berg')),
+    );
     await tester.tap(find.byKey(const ValueKey('signOut')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('signIn')), findsOneWidget);
