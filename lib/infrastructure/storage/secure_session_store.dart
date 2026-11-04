@@ -41,6 +41,7 @@ class SecureSessionStore implements SessionStore {
             mustChangePassword: json['mustChangePassword'] == true,
             firstName: _optional(json['firstName']),
             lastName: _optional(json['lastName']),
+            staffId: json['staffId'] is int ? json['staffId'] as int : 0,
           );
         }
       }
@@ -62,6 +63,7 @@ class SecureSessionStore implements SessionStore {
       'mustChangePassword': session.mustChangePassword,
       'firstName': session.firstName,
       'lastName': session.lastName,
+      'staffId': session.staffId,
     }),
   );
 

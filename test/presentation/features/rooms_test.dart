@@ -158,6 +158,7 @@ void main() {
           session: session,
           auth: FakeAuthRepository(Success(validSession())),
           staff: FakeStaffRepository(),
+          planning: FakePlanningRepository(),
         ),
       ),
     );

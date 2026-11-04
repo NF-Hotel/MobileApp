@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:mobil_application/domain/repositories/auth_repository.dart';
+import 'package:mobil_application/domain/repositories/planning_repository.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
 import 'package:mobil_application/domain/repositories/room_service_note_repository.dart';
 import 'package:mobil_application/domain/repositories/staff_repository.dart';
@@ -29,6 +30,7 @@ class NfHotelApp extends StatefulWidget {
     required this.rooms,
     required this.serviceNotes,
     required this.staff,
+    required this.planning,
     super.key,
   });
 
@@ -46,6 +48,9 @@ class NfHotelApp extends StatefulWidget {
 
   /// Manages the staff accounts, for a Manager.
   final StaffRepository staff;
+
+  /// The shifts, the room assignments and their trades (MIL-060).
+  final PlanningRepository planning;
 
   @override
   State<NfHotelApp> createState() => _NfHotelAppState();
@@ -125,6 +130,7 @@ class _NfHotelAppState extends State<NfHotelApp> {
             session: widget.session,
             auth: widget.auth,
             staff: widget.staff,
+            planning: widget.planning,
           );
         },
       ),

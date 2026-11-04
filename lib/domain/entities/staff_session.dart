@@ -20,6 +20,13 @@ enum StaffRole {
   /// Whether the role may manage the staff accounts (MIL-059). Only what the
   /// app offers: the API refuses everybody else as well.
   bool get canManageStaff => this == StaffRole.manager;
+
+  /// Whether the role plans shifts, assigns rooms and approves trades
+  /// (MIL-060).
+  bool get canPlan => this == StaffRole.manager;
+
+  /// Whether the role has rooms assigned and trades them (MIL-060).
+  bool get hasRooms => this == StaffRole.housekeeping;
 }
 
 /// A signed-in member of staff and the token the API gave them.
@@ -33,6 +40,7 @@ class StaffSession {
     this.mustChangePassword = false,
     this.firstName,
     this.lastName,
+    this.staffId = 0,
   });
 
   /// The staff token; sent in `X-Staff-Token`. A secret: never log it.
@@ -56,6 +64,10 @@ class StaffSession {
 
   /// The last name, or null while the account has no name (MIL-059).
   final String? lastName;
+
+  /// The key of the account, to tell the own shifts, rooms and trades apart
+  /// (MIL-060); 0 for a session from an API without it.
+  final int staffId;
 
   /// True when the account has a first and a last name.
   bool get hasName => firstName != null && lastName != null;

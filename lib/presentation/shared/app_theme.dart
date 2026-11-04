@@ -159,6 +159,18 @@ ThemeData buildAppTheme() {
             : AppColors.navy;
       }),
     ),
+    chipTheme: ChipThemeData(
+      backgroundColor: Colors.white,
+      selectedColor: AppColors.navy.withValues(alpha: 0.12),
+      checkmarkColor: AppColors.navy,
+      side: const BorderSide(color: AppColors.border),
+      labelStyle: sans(
+        null,
+        weight: FontWeight.w600,
+        color: AppColors.navyDark,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    ),
     popupMenuTheme: PopupMenuThemeData(
       color: Colors.white,
       surfaceTintColor: Colors.transparent,

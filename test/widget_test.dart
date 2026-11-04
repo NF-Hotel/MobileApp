@@ -42,6 +42,7 @@ void main() {
         rooms: rooms,
         serviceNotes: FakeRoomServiceNoteRepository(),
         staff: FakeStaffRepository(),
+        planning: FakePlanningRepository(),
       ),
     );
     await session.restore();

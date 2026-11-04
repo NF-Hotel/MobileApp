@@ -1,3 +1,4 @@
+import 'package:mobil_application/domain/entities/planning.dart';
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/entities/room_service_note.dart';
 import 'package:mobil_application/domain/entities/staff_account.dart';
@@ -20,6 +21,7 @@ abstract final class ApiJson {
       mustChangePassword: map['mustChangePassword'] == true,
       firstName: _optionalString(map, 'firstName'),
       lastName: _optionalString(map, 'lastName'),
+      staffId: map['staffId'] is int ? map['staffId']! as int : 0,
     );
   }
 
@@ -45,6 +47,93 @@ abstract final class ApiJson {
     }
     return json.map(staffAccount).toList(growable: false);
   }
+
+  /// Reads one shift (MIL-060).
+  static Shift shift(Object? json) {
+    final map = _map(json);
+    return Shift(
+      id: _int(map, 'id'),
+      startsAt: DateTime.parse(_string(map, 'startsAt')).toLocal(),
+      endsAt: DateTime.parse(_string(map, 'endsAt')).toLocal(),
+      role: _enum(map, 'role', StaffRole.values, firstNumber: 1),
+      assigneeId: map['assigneeId'] is int ? map['assigneeId']! as int : null,
+      assigneeName: _optionalString(map, 'assigneeName'),
+    );
+  }
+
+  /// Reads a list of shifts.
+  static List<Shift> shifts(Object? json) => _list(json, shift);
+
+  /// Reads one trade of shifts.
+  static ShiftTrade shiftTrade(Object? json) {
+    final map = _map(json);
+    return ShiftTrade(
+      id: _int(map, 'id'),
+      shift: shift(map['shift']),
+      swapShift: map['swapShift'] == null ? null : shift(map['swapShift']),
+      offeredById: _int(map, 'offeredById'),
+      offeredByName: _string(map, 'offeredByName'),
+      takenById: map['takenById'] is int ? map['takenById']! as int : null,
+      takenByName: _optionalString(map, 'takenByName'),
+      state: _enum(map, 'state', TradeState.values, firstNumber: 1),
+      isClosed: map['isClosed'] == true,
+    );
+  }
+
+  /// Reads a list of trades of shifts.
+  static List<ShiftTrade> shiftTrades(Object? json) => _list(json, shiftTrade);
+
+  /// Reads the rooms with their housekeepers (MIL-060).
+  static RoomAssignmentOverview roomAssignments(Object? json) {
+    final map = _map(json);
+    return RoomAssignmentOverview(
+      rooms: _list(map['rooms'], (Object? item) {
+        final room = _map(item);
+        return RoomAssignment(
+          roomId: _int(room, 'roomId'),
+          roomNumber: _string(room, 'roomNumber'),
+          floor: _int(room, 'floor'),
+          staffId: room['staffId'] is int ? room['staffId']! as int : null,
+          staffName: _optionalString(room, 'staffName'),
+        );
+      }),
+      housekeepers: _list(map['housekeepers'], (Object? item) {
+        final keeper = _map(item);
+        return Housekeeper(
+          id: _int(keeper, 'id'),
+          name: _string(keeper, 'name'),
+          roomCount: _int(keeper, 'roomCount'),
+        );
+      }),
+      minimumRooms: _int(map, 'minimumRooms'),
+    );
+  }
+
+  /// Reads one trade of rooms.
+  static RoomTrade roomTrade(Object? json) {
+    final map = _map(json);
+    TradedRoom room(Object? item) {
+      final value = _map(item);
+      return TradedRoom(
+        roomId: _int(value, 'roomId'),
+        roomNumber: _string(value, 'roomNumber'),
+      );
+    }
+
+    return RoomTrade(
+      id: _int(map, 'id'),
+      fromStaffId: _int(map, 'fromStaffId'),
+      fromName: _string(map, 'fromName'),
+      toStaffId: _int(map, 'toStaffId'),
+      toName: _string(map, 'toName'),
+      give: _list(map['give'], room),
+      take: _list(map['take'], room),
+      state: _enum(map, 'state', TradeState.values, firstNumber: 1),
+    );
+  }
+
+  /// Reads a list of trades of rooms.
+  static List<RoomTrade> roomTrades(Object? json) => _list(json, roomTrade);
 
   /// The number the API uses for [role]; the API counts the roles from 1.
   static int roleNumber(StaffRole role) => role.index + 1;
@@ -137,6 +226,13 @@ abstract final class ApiJson {
       return value;
     }
     throw FormatException('"$key" should be a whole number.');
+  }
+
+  static List<T> _list<T>(Object? json, T Function(Object? item) read) {
+    if (json is! List<Object?>) {
+      throw const FormatException('A list was expected.');
+    }
+    return json.map(read).toList(growable: false);
   }
 
   static String? _optionalString(Map<String, Object?> map, String key) =>

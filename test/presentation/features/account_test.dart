@@ -37,6 +37,7 @@ void main() {
         rooms: FakeRoomRepository([room(id: 5, number: '305')]),
         serviceNotes: FakeRoomServiceNoteRepository(),
         staff: staff,
+        planning: FakePlanningRepository(),
       ),
     );
     await session.restore();
@@ -193,20 +194,32 @@ void main() {
   });
 
   group('from the rooms', () {
-    testWidgets('only a Manager sees the administration', (tester) async {
-      await start(tester, validSession(firstName: 'Hilda', lastName: 'Berg'));
-      expect(find.byKey(const ValueKey('administration')), findsNothing);
+    testWidgets(
+      'the menu offers a Manager the planning and the administration',
+      (tester) async {
+        Future<void> openMenu() async {
+          await tester.tap(find.byKey(const ValueKey('menu')));
+          await tester.pumpAndSettle();
+        }
 
-      await start(
-        tester,
-        validSession(
-          role: StaffRole.manager,
-          firstName: 'Mia',
-          lastName: 'Holm',
-        ),
-      );
-      expect(find.byKey(const ValueKey('administration')), findsOneWidget);
-    });
+        await start(tester, validSession(firstName: 'Hilda', lastName: 'Berg'));
+        await openMenu();
+        expect(find.byKey(const ValueKey('administration')), findsNothing);
+        expect(find.text(Strings.myWork), findsOneWidget);
+
+        await start(
+          tester,
+          validSession(
+            role: StaffRole.manager,
+            firstName: 'Mia',
+            lastName: 'Holm',
+          ),
+        );
+        await openMenu();
+        expect(find.byKey(const ValueKey('administration')), findsOneWidget);
+        expect(find.text(Strings.planning), findsOneWidget);
+      },
+    );
 
     testWidgets('a Manager opens the administration with the accounts', (
       tester,
@@ -219,6 +232,8 @@ void main() {
         validSession(role: StaffRole.manager, firstName: 'M', lastName: 'H'),
       );
 
+      await tester.tap(find.byKey(const ValueKey('menu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('administration')));
       await tester.pumpAndSettle();
 
@@ -237,6 +252,8 @@ void main() {
         validSession(firstName: 'Hilda', lastName: 'Berg'),
       );
 
+      await tester.tap(find.byKey(const ValueKey('menu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('changePassword')));
       await tester.pumpAndSettle();
       await fillPasswords(

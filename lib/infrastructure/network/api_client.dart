@@ -39,9 +39,13 @@ class ApiClient {
   final TokenProvider _tokenProvider;
   final void Function() _onUnauthorized;
 
-  /// A GET; [parse] turns the `value` of the envelope into the result.
-  Future<Result<T>> get<T>(String path, T Function(Object? value) parse) =>
-      _send('GET', path, parse);
+  /// A GET with an optional [query]; [parse] turns the `value` of the envelope
+  /// into the result.
+  Future<Result<T>> get<T>(
+    String path,
+    T Function(Object? value) parse, {
+    Map<String, String>? query,
+  }) => _send('GET', path, parse, query: query);
 
   /// A POST with an optional JSON [body] and [query].
   Future<Result<T>> post<T>(
@@ -50,6 +54,13 @@ class ApiClient {
     Map<String, Object?>? body,
     Map<String, String>? query,
   }) => _send('POST', path, parse, body: body, query: query);
+
+  /// A PUT with a JSON [body] (MIL-060).
+  Future<Result<T>> put<T>(
+    String path,
+    T Function(Object? value) parse, {
+    required Map<String, Object?> body,
+  }) => _send('PUT', path, parse, body: body);
 
   /// A DELETE; [parse] turns the `value` of the envelope into the result.
   Future<Result<T>> delete<T>(String path, T Function(Object? value) parse) =>
@@ -75,6 +86,11 @@ class ApiClient {
         response = await _client.get(uri, headers: headers).timeout(timeout);
       } else if (method == 'DELETE') {
         response = await _client.delete(uri, headers: headers).timeout(timeout);
+      } else if (method == 'PUT') {
+        headers['Content-Type'] = 'application/json';
+        response = await _client
+            .put(uri, headers: headers, body: jsonEncode(body))
+            .timeout(timeout);
       } else {
         headers['Content-Type'] = 'application/json';
         response = await _client

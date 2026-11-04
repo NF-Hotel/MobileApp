@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/repositories/auth_repository.dart';
+import 'package:mobil_application/domain/repositories/planning_repository.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
 import 'package:mobil_application/domain/repositories/room_service_note_repository.dart';
 import 'package:mobil_application/domain/repositories/staff_repository.dart';
@@ -16,7 +17,12 @@ import 'package:mobil_application/presentation/features/rooms/room_service_notes
 import 'package:mobil_application/presentation/features/rooms/room_tile.dart';
 import 'package:mobil_application/presentation/features/rooms/room_view_model.dart';
 import 'package:mobil_application/presentation/features/rooms/room_view_screen.dart';
+import 'package:mobil_application/presentation/features/work/my_work_screen.dart';
+import 'package:mobil_application/presentation/features/work/my_work_view_model.dart';
+import 'package:mobil_application/presentation/features/work/planning_screen.dart';
+import 'package:mobil_application/presentation/features/work/planning_view_model.dart';
 import 'package:mobil_application/presentation/session/session_controller.dart';
+import 'package:mobil_application/presentation/shared/app_theme.dart';
 import 'package:mobil_application/presentation/shared/strings.dart';
 
 /// All rooms of the hotel, with their housekeeping state.
@@ -29,6 +35,7 @@ class RoomOverviewScreen extends StatefulWidget {
     required this.session,
     required this.auth,
     required this.staff,
+    required this.planning,
     super.key,
   });
 
@@ -49,6 +56,9 @@ class RoomOverviewScreen extends StatefulWidget {
 
   /// Manages the staff accounts, for a Manager.
   final StaffRepository staff;
+
+  /// The shifts, the room assignments and their trades (MIL-060).
+  final PlanningRepository planning;
 
   @override
   State<RoomOverviewScreen> createState() => _RoomOverviewScreenState();
@@ -111,19 +121,119 @@ class _RoomOverviewScreenState extends State<RoomOverviewScreen> {
     ),
   );
 
+  Future<void> _openWork() async {
+    final session = widget.session.session;
+    if (session == null) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => session.role.canPlan
+            ? PlanningScreen(
+                viewModel: PlanningViewModel(
+                  planning: widget.planning,
+                  staff: widget.staff,
+                ),
+              )
+            : MyWorkScreen(
+                viewModel: MyWorkViewModel(
+                  planning: widget.planning,
+                  session: session,
+                ),
+              ),
+      ),
+    );
+  }
+
+  /// Closes the menu, then opens [page].
+  void _fromMenu(Future<void> Function() page) {
+    Navigator.of(context).pop();
+    unawaited(page());
+  }
+
+  Widget _menu(BuildContext context) {
+    final session = widget.session.session;
+    final textTheme = Theme.of(context).textTheme;
+    final canPlan = session?.role.canPlan ?? false;
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(color: AppColors.navy),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  Strings.appTitle,
+                  style: textTheme.headlineSmall?.copyWith(color: Colors.white),
+                ),
+                if (session != null)
+                  Text(
+                    '${session.displayName} · ${Strings.role(session.role)}',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.amber,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.meeting_room),
+            title: const Text(Strings.roomsTitle),
+            selected: true,
+            onTap: () => Navigator.of(context).pop(),
+          ),
+          ListTile(
+            key: const ValueKey('menuWork'),
+            leading: Icon(canPlan ? Icons.calendar_month : Icons.event_note),
+            title: Text(canPlan ? Strings.planning : Strings.myWork),
+            onTap: () => _fromMenu(_openWork),
+          ),
+          if (session != null && session.role.canManageStaff)
+            ListTile(
+              key: const ValueKey('administration'),
+              leading: const Icon(Icons.admin_panel_settings),
+              title: const Text(Strings.administration),
+              onTap: () => _fromMenu(_openAdministration),
+            ),
+          const Divider(),
+          ListTile(
+            key: const ValueKey('changePassword'),
+            leading: const Icon(Icons.lock_reset),
+            title: const Text(Strings.changePassword),
+            onTap: () => _fromMenu(_openChangePassword),
+          ),
+          ListTile(
+            key: const ValueKey('menuSignOut'),
+            leading: const Icon(Icons.logout),
+            title: const Text(Strings.signOut),
+            onTap: () {
+              Navigator.of(context).pop();
+              unawaited(widget.session.signOut());
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = widget.session.session;
     return Scaffold(
+      drawer: _menu(context),
       appBar: AppBar(
-        leading: session != null && session.role.canManageStaff
-            ? IconButton(
-                key: const ValueKey('administration'),
-                tooltip: Strings.administration,
-                icon: const Icon(Icons.admin_panel_settings),
-                onPressed: () => unawaited(_openAdministration()),
-              )
-            : null,
+        leading: Builder(
+          builder: (context) => IconButton(
+            key: const ValueKey('menu'),
+            tooltip: Strings.menu,
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         centerTitle: true,
         title: Column(
           mainAxisSize: MainAxisSize.min,
@@ -144,12 +254,6 @@ class _RoomOverviewScreenState extends State<RoomOverviewScreen> {
             tooltip: Strings.refresh,
             icon: const Icon(Icons.refresh),
             onPressed: () => unawaited(widget.viewModel.load()),
-          ),
-          IconButton(
-            key: const ValueKey('changePassword'),
-            tooltip: Strings.changePassword,
-            icon: const Icon(Icons.lock_reset),
-            onPressed: () => unawaited(_openChangePassword()),
           ),
           IconButton(
             key: const ValueKey('signOut'),

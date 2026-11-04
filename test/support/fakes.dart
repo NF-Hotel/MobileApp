@@ -1,8 +1,10 @@
+import 'package:mobil_application/domain/entities/planning.dart';
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/entities/room_service_note.dart';
 import 'package:mobil_application/domain/entities/staff_account.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/repositories/auth_repository.dart';
+import 'package:mobil_application/domain/repositories/planning_repository.dart';
 import 'package:mobil_application/domain/repositories/room_repository.dart';
 import 'package:mobil_application/domain/repositories/room_service_note_repository.dart';
 import 'package:mobil_application/domain/repositories/session_store.dart';
@@ -19,6 +21,7 @@ StaffSession validSession({
   String? firstName,
   String? lastName,
   String token = 'token-1',
+  int staffId = 7,
 }) => StaffSession(
   token: token,
   expiresAt: testNow.add(const Duration(hours: 8)),
@@ -27,6 +30,7 @@ StaffSession validSession({
   mustChangePassword: mustChangePassword,
   firstName: firstName,
   lastName: lastName,
+  staffId: staffId,
 );
 
 /// A room with the given state; the actions default to none.
@@ -418,5 +422,150 @@ class FakeRoomRepository implements RoomRepository {
         : change(roomId, action, requiresCleaning);
     rooms = [for (final r in rooms) r.roomId == roomId ? updated : r];
     return Success(updated);
+  }
+}
+
+/// Holds shifts, room assignments and their trades in memory, and records the
+/// steps asked of it (MIL-060). It does not apply the rules; the API does.
+class FakePlanningRepository implements PlanningRepository {
+  /// The shifts it returns.
+  List<Shift> shifts = <Shift>[];
+
+  /// The trades of shifts it returns.
+  List<ShiftTrade> shiftTrades = <ShiftTrade>[];
+
+  /// The rooms it returns.
+  RoomAssignmentOverview rooms = const RoomAssignmentOverview(
+    rooms: [],
+    housekeepers: [],
+    minimumRooms: 3,
+  );
+
+  /// The trades of rooms it returns.
+  List<RoomTrade> roomTrades = <RoomTrade>[];
+
+  /// Set to make every change fail; the reads still work.
+  ApiFailure? changeFailure;
+
+  /// The calls, as `action:detail`.
+  final List<String> calls = <String>[];
+
+  @override
+  Future<Result<List<Shift>>> readShifts(DateTime from, DateTime to) async =>
+      Success([
+        for (final shift in shifts)
+          if (shift.startsAt.isBefore(to) && shift.endsAt.isAfter(from)) shift,
+      ]);
+
+  @override
+  Future<Result<Shift>> createShift(
+    DateTime startsAt,
+    DateTime endsAt,
+    StaffRole role,
+    int? assigneeId,
+  ) => _change(
+    'create:${startsAt.toIso8601String()}>${endsAt.toIso8601String()}:${role.name}:$assigneeId',
+    () {
+      final shift = Shift(
+        id: shifts.length + 100,
+        startsAt: startsAt,
+        endsAt: endsAt,
+        role: role,
+        assigneeId: assigneeId,
+      );
+      shifts = [...shifts, shift];
+      return shift;
+    },
+  );
+
+  @override
+  Future<Result<Shift>> updateShift(
+    int id,
+    DateTime startsAt,
+    DateTime endsAt,
+    StaffRole role,
+    int? assigneeId,
+  ) => _change(
+    'update:$id:$assigneeId',
+    () => shifts.firstWhere((s) => s.id == id),
+  );
+
+  @override
+  Future<Result<void>> deleteShift(int id) => _change('delete:$id', () {
+    shifts = [
+      for (final shift in shifts)
+        if (shift.id != id) shift,
+    ];
+  });
+
+  @override
+  Future<Result<List<ShiftTrade>>> readShiftTrades() async =>
+      Success(shiftTrades);
+
+  @override
+  Future<Result<ShiftTrade>> offerShift(int shiftId, {int? swapShiftId}) =>
+      _change('offer:$shiftId:$swapShiftId', () {
+        final trade = ShiftTrade(
+          id: shiftTrades.length + 100,
+          shift: shifts.firstWhere((shift) => shift.id == shiftId),
+          swapShift: swapShiftId == null
+              ? null
+              : shifts.firstWhere((shift) => shift.id == swapShiftId),
+          offeredById:
+              shifts.firstWhere((shift) => shift.id == shiftId).assigneeId ?? 0,
+          offeredByName: 'me',
+          state: TradeState.open,
+          isClosed: false,
+        );
+        shiftTrades = [...shiftTrades, trade];
+        return trade;
+      });
+
+  @override
+  Future<Result<ShiftTrade>> stepShiftTrade(int id, TradeStep step) => _change(
+    'shift-${step.name}:$id',
+    () => shiftTrades.firstWhere((t) => t.id == id),
+  );
+
+  @override
+  Future<Result<RoomAssignmentOverview>> readRoomAssignments() async =>
+      Success(rooms);
+
+  @override
+  Future<Result<void>> assignRoom(int roomId, int? staffId) =>
+      _change('assign:$roomId:$staffId', () {});
+
+  @override
+  Future<Result<List<RoomTrade>>> readRoomTrades() async => Success(roomTrades);
+
+  @override
+  Future<Result<RoomTrade>> offerRooms(
+    int toStaffId,
+    List<int> giveRoomIds,
+    List<int> takeRoomIds,
+  ) => _change(
+    'offerRooms:$toStaffId:${giveRoomIds.join(',')}:${takeRoomIds.join(',')}',
+    () => RoomTrade(
+      id: 1,
+      fromStaffId: 0,
+      fromName: 'me',
+      toStaffId: toStaffId,
+      toName: '',
+      give: const [],
+      take: const [],
+      state: TradeState.open,
+    ),
+  );
+
+  @override
+  Future<Result<RoomTrade>> stepRoomTrade(int id, TradeStep step) => _change(
+    'rooms-${step.name}:$id',
+    () => roomTrades.firstWhere((t) => t.id == id),
+  );
+
+  Future<Result<T>> _change<T>(String call, T Function() apply) async {
+    calls.add(call);
+    final failed = changeFailure;
+    return failed == null ? Success(apply()) : Failed(failed);
   }
 }

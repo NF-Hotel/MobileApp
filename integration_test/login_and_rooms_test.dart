@@ -21,6 +21,7 @@ import 'package:mobil_application/infrastructure/network/api_client.dart';
 import 'package:mobil_application/infrastructure/network/api_config.dart';
 import 'package:mobil_application/infrastructure/network/http_auth_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_client_factory.dart';
+import 'package:mobil_application/infrastructure/network/http_planning_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_room_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_room_service_note_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_staff_repository.dart';
@@ -56,6 +57,7 @@ Future<SessionController> _start(WidgetTester tester) async {
       rooms: HttpRoomRepository(client),
       serviceNotes: HttpRoomServiceNoteRepository(client),
       staff: HttpStaffRepository(client),
+      planning: HttpPlanningRepository(client),
     ),
   );
   await session.restore();

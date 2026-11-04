@@ -42,6 +42,26 @@ seconds and shows the answer.
   own account and the last active Manager can be neither disabled, deleted nor
   given another role, and every change is in the audit trail.
 
+## Shifts and rooms (MIL-060)
+
+The menu on the rooms screen leads to the work of the member:
+
+- **My shifts and rooms** (every role but Manager). The own shifts of the next
+  four weeks, each of which can be given away or offered in a swap until 24
+  hours before it starts; the swaps and the shifts that colleagues offer; and
+  the own trades, which can be withdrawn while they wait. A housekeeper also
+  sees the own rooms, gives or trades them to another housekeeper, and answers
+  the trades offered to her or him.
+- **Planning** (Manager). The shifts of a week, the housekeeper of each room,
+  and the trades that wait for approval.
+
+The API holds the rules: a trade of shifts needs the colleague and then a
+Manager; a trade of rooms is carried out when the colleague accepts, unless it
+leaves somebody with fewer than three rooms, which then needs a Manager. The
+routes are `/api/shifts`, `/api/shift-trades`, `/api/room-assignments` and
+`/api/room-trades`, on the staff-token list and the nginx filter like the
+others.
+
 ## Look
 
 The screens follow the earlier prototype of the app: a navy and amber theme,

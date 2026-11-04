@@ -1,5 +1,7 @@
+import 'package:mobil_application/domain/entities/planning.dart';
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
+import 'package:mobil_application/domain/repositories/planning_repository.dart';
 import 'package:mobil_application/domain/result.dart';
 
 /// The texts the screens show, in one place. English only for now; moving them
@@ -174,6 +176,164 @@ abstract final class Strings {
     'staff.password_change_required':
         'Choose a new password before you continue.',
   };
+
+  // My work and the planning (MIL-060).
+  static const String menu = 'Menu';
+  static const String myWork = 'My shifts and rooms';
+  static const String planning = 'Planning';
+  static const String shiftsTab = 'Shifts';
+  static const String roomsTab = 'Rooms';
+  static const String approvalsTab = 'Approvals';
+  static const String myShifts = 'My shifts';
+  static const String noShifts = 'You have no shifts in the next four weeks.';
+  static const String waitingForYou = 'Waiting for you';
+  static const String openShifts = 'Shifts you can take';
+  static const String myTrades = 'My trades';
+  static const String giveAway = 'Give away';
+  static const String swap = 'Swap';
+  static const String take = 'Take';
+  static const String accept = 'Accept';
+  static const String decline = 'Decline';
+  static const String withdraw = 'Withdraw';
+  static const String approve = 'Approve';
+  static const String reject = 'Reject';
+  static const String chooseSwap = 'Swap for which shift?';
+  static const String noSwapCandidates =
+      'No colleague with your role has a shift you can swap for.';
+  static const String myRooms = 'My rooms';
+  static const String noRooms2 = 'You have no rooms assigned.';
+  static const String giveOrTradeRooms = 'Give or trade rooms';
+  static const String colleague = 'Colleague';
+  static const String roomsToGive = 'Your rooms to give';
+  static const String roomsToTake = 'Their rooms you want (optional)';
+  static const String send = 'Send';
+  static const String needsManager =
+      'This leaves somebody with fewer than the minimum of rooms, so a Manager '
+      'must approve it after your colleague accepts.';
+  static const String leavesTooFew =
+      'The colleague accepted. It leaves somebody with fewer than the minimum '
+      'of rooms, so it needs your approval.';
+  static const String chooseRoomsToGive = 'Choose at least one room to give';
+  static const String noColleagues = 'There is no other housekeeper.';
+  static const String nothingToApprove = 'Nothing waits for approval.';
+  static const String addShift = 'Add shift';
+  static const String editShift = 'Edit shift';
+  static const String deleteShift = 'Delete shift';
+  static const String date = 'Date';
+  static const String start = 'Start';
+  static const String end = 'End';
+  static const String who = 'Who';
+  static const String nobodyYet = 'Nobody yet';
+  static const String nobody = 'Nobody';
+  static const String previousWeek = 'Previous week';
+  static const String nextWeek = 'Next week';
+  static const String housekeepers = 'Housekeepers';
+  static const String belowMinimum = 'below the minimum';
+  static const String signInAgainForWork =
+      'Sign out and in again to see your shifts and rooms.';
+
+  static const List<String> _weekdays = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
+
+  /// A day, for example `Mon 5 Jan`.
+  static String day(DateTime value) =>
+      '${_weekdays[value.weekday - 1]} ${value.day} ${_months[value.month - 1]}';
+
+  /// The times of a shift, for example `07:00–15:00`.
+  static String times(DateTime start, DateTime end) =>
+      '${_time(start)}–${_time(end)}';
+
+  /// A shift in one line, for example `Mon 5 Jan 07:00–15:00`.
+  static String shiftWhen(DateTime start, DateTime end) =>
+      '${day(start)} ${times(start, end)}';
+
+  /// The state of a trade in words.
+  static String tradeState(TradeState state) => switch (state) {
+    TradeState.open => 'Waiting for the colleague',
+    TradeState.awaitingApproval => 'Waiting for a Manager',
+    TradeState.done => 'Done',
+    TradeState.declined => 'Declined',
+    TradeState.rejected => 'Rejected by a Manager',
+    TradeState.withdrawn => 'Withdrawn',
+    TradeState.cancelled => 'Called off',
+  };
+
+  /// The rooms of a trade, for example `101, 102`.
+  static String roomNumbers(List<TradedRoom> rooms) =>
+      rooms.map((room) => room.roomNumber).join(', ');
+
+  /// The receipt of a step of a trade.
+  static String tradeStepDone(TradeStep step) => switch (step) {
+    TradeStep.take => 'You took the shift. A Manager will approve it.',
+    TradeStep.accept => 'Accepted.',
+    TradeStep.decline => 'Declined.',
+    TradeStep.withdraw => 'Withdrawn.',
+    TradeStep.approve => 'Approved.',
+    TradeStep.reject => 'Rejected.',
+  };
+
+  static const Map<String, String> _planningTexts = <String, String>{
+    'room_trade.not_found': 'That trade was not found.',
+    'room_trade.not_yours': 'That trade is not yours to answer.',
+    'room_trade.not_open': 'That trade has already been answered.',
+    'room_trade.rooms_changed':
+        'A room of the trade changed hands meanwhile, so the trade was called '
+        'off.',
+    'room_trade.no_rooms': 'Choose at least one room to give.',
+    'room_trade.duplicate_room': 'A room is chosen twice.',
+    'room_trade.same_staff': 'Choose another housekeeper.',
+    'room_trade.not_housekeeper':
+        'Rooms can only be traded with an active housekeeper.',
+    'room_trade.room_not_yours':
+        'You can only give rooms that are assigned to you.',
+    'room_trade.room_not_theirs':
+        'You can only ask for rooms that are assigned to the colleague.',
+    'room_assignment.assignee_invalid':
+        'Rooms can only be assigned to an active housekeeper.',
+    'shift.not_found': 'That shift was not found.',
+    'shift.end_before_start': 'The shift must end after it starts.',
+    'shift.too_long': 'A shift can be at most 16 hours.',
+    'shift.assignee_invalid':
+        'The shift can only go to an active member of staff with its role.',
+    'shift.overlap': 'That member of staff already has a shift at that time.',
+    'shift_trade.not_found': 'That trade was not found.',
+    'shift_trade.not_yours': 'That trade is not yours to answer.',
+    'shift_trade.not_open': 'That trade has already been answered.',
+    'shift_trade.expired':
+        'The shift starts within 24 hours, so it can no longer be traded.',
+    'shift_trade.already_offered':
+        'That shift is already offered in another trade.',
+    'shift_trade.wrong_role': 'Only staff with the role of the shift can take it.',
+    'shift_trade.own_shift': 'Choose a shift of a colleague.',
+    'shift_trade.swap_invalid':
+        'That shift cannot be swapped: it has nobody or another role.',
+    'shift_trade.shift_changed':
+        'A shift of the trade changed hands meanwhile, so the trade was called '
+        'off.',
+  };
+
+  /// The text of a failure on a shift, a room assignment or a trade.
+  static String planningFailure(ApiFailure failure) {
+    final texts = <String>{
+      for (final code in failure.codes)
+        if (_planningTexts[code] case final String text) text,
+    };
+    if (texts.isNotEmpty) {
+      return texts.join('\n');
+    }
+    if (failure.kind == FailureKind.notFound) {
+      return 'Shifts and room assignments are not available on this server '
+          'yet.';
+    }
+    return staffFailure(failure);
+  }
 
   /// The text of a failure on a staff account: the texts of its codes, or the
   /// text of its kind.

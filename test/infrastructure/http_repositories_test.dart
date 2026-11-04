@@ -4,13 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:mobil_application/domain/entities/planning.dart';
 import 'package:mobil_application/domain/entities/room.dart';
 import 'package:mobil_application/domain/entities/room_service_note.dart';
 import 'package:mobil_application/domain/entities/staff_account.dart';
 import 'package:mobil_application/domain/entities/staff_session.dart';
 import 'package:mobil_application/domain/result.dart';
 import 'package:mobil_application/infrastructure/network/api_client.dart';
+import 'package:mobil_application/domain/repositories/planning_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_auth_repository.dart';
+import 'package:mobil_application/infrastructure/network/http_planning_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_room_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_room_service_note_repository.dart';
 import 'package:mobil_application/infrastructure/network/http_staff_repository.dart';
@@ -195,6 +198,179 @@ void main() {
         'firstName': 'Hilda',
         'lastName': 'Berg',
       });
+    });
+  });
+
+  group('HttpPlanningRepository (MIL-060)', () {
+    test('reads shifts in a period, with the times in UTC in the query', () async {
+      answer = (_) => _ok([
+        {
+          'id': 1,
+          'startsAt': '2026-11-10T06:00:00+00:00',
+          'endsAt': '2026-11-10T14:00:00+00:00',
+          'role': 3,
+          'assigneeId': 7,
+          'assigneeName': 'Hilda Berg',
+        },
+      ]);
+
+      final result = await HttpPlanningRepository(
+        client,
+      ).readShifts(DateTime.utc(2026, 11, 9), DateTime.utc(2026, 11, 16));
+
+      final shift = (result as Success<List<Shift>>).value.single;
+      expect(shift.role, StaffRole.housekeeping);
+      expect(shift.startsAt.toUtc(), DateTime.utc(2026, 11, 10, 6));
+      expect(sent.single.url.path, '/mobile-api/api/shifts');
+      expect(sent.single.url.queryParameters['from'], '2026-11-09T00:00:00.000Z');
+    });
+
+    test('reads a swap with both shifts and its state', () async {
+      Map<String, Object?> shift(int id) => {
+        'id': id,
+        'startsAt': '2026-11-10T06:00:00Z',
+        'endsAt': '2026-11-10T14:00:00Z',
+        'role': 3,
+        'assigneeId': id,
+        'assigneeName': null,
+      };
+      answer = (_) => _ok([
+        {
+          'id': 4,
+          'shift': shift(1),
+          'swapShift': shift(2),
+          'offeredById': 1,
+          'offeredByName': 'Hilda Berg',
+          'takenById': 2,
+          'takenByName': 'Otto Lund',
+          'state': 2,
+          'isClosed': false,
+          'offeredAt': '2026-11-01T10:00:00Z',
+        },
+      ]);
+
+      final result = await HttpPlanningRepository(client).readShiftTrades();
+
+      final trade = (result as Success<List<ShiftTrade>>).value.single;
+      expect(trade.isSwap, isTrue);
+      expect(trade.state, TradeState.awaitingApproval);
+      expect(trade.takenByName, 'Otto Lund');
+    });
+
+    test('every step and change goes to its route with its verb', () async {
+      final shift = {
+        'id': 1,
+        'startsAt': '2026-11-10T06:00:00Z',
+        'endsAt': '2026-11-10T14:00:00Z',
+        'role': 3,
+      };
+      final trade = {
+        'id': 4,
+        'shift': shift,
+        'offeredById': 1,
+        'offeredByName': 'H',
+        'state': 1,
+        'isClosed': false,
+      };
+      final roomTrade = {
+        'id': 5,
+        'fromStaffId': 1,
+        'fromName': 'H',
+        'toStaffId': 2,
+        'toName': 'O',
+        'give': [
+          {'roomId': 101, 'roomNumber': '101'},
+        ],
+        'take': <Object?>[],
+        'state': 1,
+      };
+      answer = (request) => _ok(
+        request.url.path.contains('room-trades')
+            ? roomTrade
+            : request.url.path.contains('shift-trades')
+            ? trade
+            : request.method == 'DELETE' || request.url.path.contains('assignments')
+            ? null
+            : shift,
+      );
+      final repository = HttpPlanningRepository(client);
+
+      await repository.createShift(
+        DateTime.utc(2026, 11, 10, 6),
+        DateTime.utc(2026, 11, 10, 14),
+        StaffRole.housekeeping,
+        7,
+      );
+      await repository.updateShift(
+        1,
+        DateTime.utc(2026, 11, 10, 6),
+        DateTime.utc(2026, 11, 10, 14),
+        StaffRole.housekeeping,
+        null,
+      );
+      await repository.deleteShift(1);
+      await repository.offerShift(1, swapShiftId: 2);
+      await repository.stepShiftTrade(4, TradeStep.take);
+      await repository.assignRoom(101, 7);
+      await repository.offerRooms(2, [101], [201]);
+      await repository.stepRoomTrade(5, TradeStep.approve);
+
+      expect(sent.map((request) => '${request.method} ${request.url.path}'), [
+        'POST /mobile-api/api/shifts',
+        'PUT /mobile-api/api/shifts/1',
+        'DELETE /mobile-api/api/shifts/1',
+        'POST /mobile-api/api/shift-trades',
+        'POST /mobile-api/api/shift-trades/4/take',
+        'PUT /mobile-api/api/room-assignments/101',
+        'POST /mobile-api/api/room-trades',
+        'POST /mobile-api/api/room-trades/5/approve',
+      ]);
+      expect(jsonDecode(sent[0].body), {
+        'startsAt': '2026-11-10T06:00:00.000Z',
+        'endsAt': '2026-11-10T14:00:00.000Z',
+        'role': 3,
+        'assigneeId': 7,
+      });
+      expect(jsonDecode(sent[3].body), {'shiftId': 1, 'swapShiftId': 2});
+      expect(jsonDecode(sent[5].body), {'staffId': 7});
+      expect(jsonDecode(sent[6].body), {
+        'toStaffId': 2,
+        'giveRoomIds': [101],
+        'takeRoomIds': [201],
+      });
+    });
+
+    test('reads the rooms with their housekeepers', () async {
+      answer = (_) => _ok({
+        'rooms': [
+          {'roomId': 101, 'roomNumber': '101', 'floor': 1, 'staffId': 7, 'staffName': 'Hilda Berg'},
+          {'roomId': 102, 'roomNumber': '102', 'floor': 1, 'staffId': null, 'staffName': null},
+        ],
+        'housekeepers': [
+          {'id': 7, 'name': 'Hilda Berg', 'roomCount': 1},
+        ],
+        'minimumRooms': 3,
+      });
+
+      final result = await HttpPlanningRepository(client).readRoomAssignments();
+
+      final overview = (result as Success<RoomAssignmentOverview>).value;
+      expect(overview.roomsOf(7).single.roomNumber, '101');
+      expect(overview.minimumRooms, 3);
+    });
+
+    test('the session carries the key of the account', () async {
+      answer = (_) => _ok({
+        'token': 't',
+        'expiresAt': '2026-10-20T16:00:00Z',
+        'userName': 'hilda',
+        'role': 3,
+        'staffId': 7,
+      });
+
+      final result = await HttpAuthRepository(client).signIn('hilda', 'p');
+
+      expect((result as Success<StaffSession>).value.staffId, 7);
     });
   });
 
