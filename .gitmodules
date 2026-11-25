@@ -1,0 +1,3 @@
+[submodule "sqa-qc-framework"]
+	path = sqa-qc-framework
+	url = https://git.tirsystem.com/TirSystem/sqa-qc-framework
